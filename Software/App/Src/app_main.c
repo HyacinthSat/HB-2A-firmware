@@ -1,10 +1,12 @@
 #include "app_main.h"
 
 #include "app_flow.h"
+#include "aprs_service.h"
 #include "gnss_service.h"
 #include "i2c.h"
 #include "main.h"
 #include "sensors.h"
+#include "spi.h"
 #include "telemetry_service.h"
 #include "usart.h"
 
@@ -49,7 +51,7 @@ static int gnss_startup(GnssService *service)
   return -1;
 }
 
-static void telemetry_report(const GnssService *gnss)
+static int telemetry_report(const GnssService *gnss, TelemetryFrame *reported)
 {
   const GnssSolution *solution;
   TelemetryGnssSnapshot snapshot;
@@ -57,9 +59,9 @@ static void telemetry_report(const GnssService *gnss)
   TelemetryFrame frame;
   uint8_t health_mask;
 
-  if (gnss == 0) return;
+  if (gnss == 0) return -1;
   solution = gnss_service_solution(gnss);
-  if (solution == 0) return;
+  if (solution == 0) return -1;
   memset(&snapshot, 0, sizeof(snapshot));
   snapshot.position_valid = solution->position_valid;
   snapshot.utc_valid = solution->utc_valid;
@@ -80,20 +82,24 @@ static void telemetry_report(const GnssService *gnss)
   if (snapshot.position_valid != 0U) health_mask |= (uint8_t)(1U << 4);
   if (telemetry_service_build(&snapshot, &sensors, health_mask, &frame) != 0) {
     app_debug("NORMAL telemetry build failed\r\n");
-    return;
+    return -2;
   }
+  if (reported != 0) *reported = frame;
   app_debug("NORMAL APRS telemetry: ");
   app_debug(frame.aprs_text);
   app_debug("\r\n");
   app_debug(frame.wspr_ready != 0U ?
             "NORMAL WSPR telemetry ready\r\n" :
             "NORMAL WSPR telemetry waiting for valid sensors\r\n");
+  return 0;
 }
 
 void app_main(void)
 {
   AppFlow flow;
   GnssService gnss;
+  AprsService aprs;
+  TelemetryFrame telemetry;
 
   app_flow_init(&flow);
   (void)app_flow_dispatch(&flow, APP_EVENT_BOOT_CHECK_DONE);
@@ -111,14 +117,28 @@ void app_main(void)
   MX_I2C3_Init();
   Sensors_Init();
   app_debug("NORMAL sensors initialized\r\n");
-  telemetry_report(&gnss);
+  if (telemetry_report(&gnss, &telemetry) == 0) {
+    MX_SPI2_Init();
+    if (aprs_service_init(&aprs) == 0) {
+      app_debug("NORMAL APRS SX1278 initialized\r\n");
+      if (aprs_service_send_telemetry(&aprs, &telemetry) == 0) {
+        app_debug("NORMAL APRS telemetry TX complete\r\n");
+      } else {
+        app_debug("NORMAL APRS telemetry TX failed\r\n");
+      }
+    } else {
+      app_debug("NORMAL APRS SX1278 initialization failed\r\n");
+    }
+  } else {
+    app_debug("NORMAL APRS telemetry unavailable\r\n");
+  }
 
   uint32_t next_telemetry_report = HAL_GetTick() + 60000U;
   for (;;) {
     gnss_service_poll(&gnss);
     Sensors_Poll();
     if ((int32_t)(HAL_GetTick() - next_telemetry_report) >= 0) {
-      telemetry_report(&gnss);
+      (void)telemetry_report(&gnss, 0);
       next_telemetry_report += 60000U;
     }
     HAL_Delay(10U);
