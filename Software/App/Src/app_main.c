@@ -11,6 +11,7 @@
 #include "usart.h"
 #include "wspr_service.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static void app_debug(const char *text)
@@ -59,6 +60,7 @@ static int telemetry_report(const GnssService *gnss, TelemetryFrame *reported)
   SensorSample sensors;
   TelemetryFrame frame;
   WsprFrame wspr;
+  char debug_line[TELEMETRY_APRS_TEXT_CAPACITY + 64U];
   uint8_t health_mask;
 
   if (gnss == 0) return -1;
@@ -87,13 +89,13 @@ static int telemetry_report(const GnssService *gnss, TelemetryFrame *reported)
     return -2;
   }
   if (reported != 0) *reported = frame;
-  app_debug("NORMAL APRS telemetry: ");
-  app_debug(frame.aprs_text);
-  app_debug("\r\n");
+  (void)snprintf(debug_line, sizeof(debug_line),
+                 "NORMAL APRS telemetry: %s\r\n", frame.aprs_text);
+  app_debug(debug_line);
   if (wspr_service_build(&frame, &wspr) == 0) {
-    app_debug("NORMAL WSPR telemetry frame: ");
-    app_debug(wspr.text);
-    app_debug("\r\n");
+    (void)snprintf(debug_line, sizeof(debug_line),
+                   "NORMAL WSPR telemetry frame: %s\r\n", wspr.text);
+    app_debug(debug_line);
   } else {
     app_debug("NORMAL WSPR telemetry waiting for valid sensors\r\n");
   }
