@@ -15,6 +15,7 @@
 #define APP_WSPR_CENTER_HZ            14097140UL
 #define APP_WSPR_REGULAR_MINUTE       2U
 #define APP_WSPR_TELEMETRY_MINUTE     4U
+#define APP_WSPR_DEFAULT_POWER_DBM    10U
 #define APP_WSPR_SYMBOL_COUNT         162U
 
 /* Centre of the OM68FA subsquare; consistent with the WSPR test locator. */

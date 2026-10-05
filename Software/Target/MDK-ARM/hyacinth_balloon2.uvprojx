@@ -430,6 +430,11 @@
               <FilePath>../../App/Src/wspr_service.c</FilePath>
             </File>
             <File>
+              <FileName>wspr_radio_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../App/Src/wspr_radio_service.c</FilePath>
+            </File>
+            <File>
               <FileName>gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/gpio.c</FilePath>

@@ -34,6 +34,12 @@ int main(void)
   assert(strstr(frame.text, "dBm") != NULL);
   assert(frame.symbols[0] <= 3U && frame.symbols[161] <= 3U);
 
+  assert(wspr_service_build_standard(&frame) == 0);
+  assert(strcmp(frame.callsign, "BG7ZDQ") == 0);
+  assert(strcmp(frame.grid, "OM68") == 0);
+  assert(frame.power_dbm == 10U);
+  assert(frame.ready == 1U);
+
   telemetry.wspr_ready = 0U;
   assert(wspr_service_build(&telemetry, &frame) == -2);
   assert(frame.ready == 0U);

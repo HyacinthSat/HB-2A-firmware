@@ -1,5 +1,6 @@
 #include "app_main.h"
 
+#include "app_config.h"
 #include "app_flow.h"
 #include "aprs_service.h"
 #include "gnss_service.h"
@@ -9,6 +10,7 @@
 #include "spi.h"
 #include "telemetry_service.h"
 #include "usart.h"
+#include "wspr_radio_service.h"
 #include "wspr_service.h"
 
 #include <stdio.h>
@@ -51,6 +53,50 @@ static int gnss_startup(GnssService *service)
   }
   gnss_reset_pulse();
   return -1;
+}
+
+static uint64_t gnss_minute_key(const GnssSolution *solution)
+{
+  return ((uint64_t)solution->year << 40U) |
+         ((uint64_t)solution->month << 32U) |
+         ((uint64_t)solution->day << 24U) |
+         ((uint64_t)solution->hour << 16U) |
+         ((uint64_t)solution->minute << 8U);
+}
+
+static uint8_t wspr_slot_due(const GnssSolution *solution,
+                             uint8_t *telemetry,
+                             uint8_t *first_pending,
+                             uint64_t *last_slot)
+{
+  uint64_t key;
+  uint8_t minute;
+
+  if (solution == NULL || telemetry == NULL || first_pending == NULL ||
+      last_slot == NULL || solution->position_valid == 0U ||
+      solution->utc_valid == 0U || solution->fully_resolved == 0U ||
+      solution->second > 1U) return 0U;
+  minute = solution->minute;
+  if (*first_pending != 0U) {
+    if ((minute & 1U) != 0U) return 0U;
+    *telemetry = 0U;
+  } else if ((minute % 10U) == APP_WSPR_REGULAR_MINUTE) {
+    *telemetry = 0U;
+  } else if ((minute % 10U) == APP_WSPR_TELEMETRY_MINUTE) {
+    *telemetry = 1U;
+  } else {
+    return 0U;
+  }
+  key = gnss_minute_key(solution);
+  if (key == *last_slot) return 0U;
+  *last_slot = key;
+  *first_pending = 0U;
+  return 1U;
+}
+
+static void wspr_radio_gnss_poll(void *context)
+{
+  gnss_service_poll((GnssService *)context);
 }
 
 static int telemetry_report(const GnssService *gnss, TelemetryFrame *reported)
@@ -107,7 +153,11 @@ void app_main(void)
   AppFlow flow;
   GnssService gnss;
   AprsService aprs;
+  WsprRadioService wspr_radio;
   TelemetryFrame telemetry;
+  char debug_line[WSPR_SERVICE_TEXT_CAPACITY + 64U];
+  uint8_t wspr_first_pending = 1U;
+  uint64_t wspr_last_slot = UINT64_MAX;
 
   app_flow_init(&flow);
   (void)app_flow_dispatch(&flow, APP_EVENT_BOOT_CHECK_DONE);
@@ -125,6 +175,11 @@ void app_main(void)
   MX_I2C3_Init();
   Sensors_Init();
   app_debug("NORMAL sensors initialized\r\n");
+  if (wspr_radio_service_init(&wspr_radio, APP_WSPR_CENTER_HZ) == 0) {
+    app_debug("NORMAL WSPR SI5351 initialized\r\n");
+  } else {
+    app_debug("NORMAL WSPR SI5351 unavailable\r\n");
+  }
   if (telemetry_report(&gnss, &telemetry) == 0) {
     MX_SPI2_Init();
     if (aprs_service_init(&aprs) == 0) {
@@ -143,11 +198,39 @@ void app_main(void)
 
   uint32_t next_telemetry_report = HAL_GetTick() + 60000U;
   for (;;) {
+    uint8_t wspr_telemetry_slot;
     gnss_service_poll(&gnss);
     Sensors_Poll();
     if ((int32_t)(HAL_GetTick() - next_telemetry_report) >= 0) {
       (void)telemetry_report(&gnss, 0);
       next_telemetry_report += 60000U;
+    }
+    if (wspr_radio.initialized != 0U &&
+        wspr_slot_due(gnss_service_solution(&gnss), &wspr_telemetry_slot,
+                      &wspr_first_pending, &wspr_last_slot) != 0U) {
+      WsprFrame frame;
+      int build_result;
+      if (wspr_telemetry_slot != 0U) {
+        build_result = telemetry_report(&gnss, &telemetry);
+        if (build_result == 0) {
+          build_result = wspr_service_build(&telemetry, &frame);
+        }
+      } else {
+        build_result = wspr_service_build_standard(&frame);
+      }
+      if (build_result != 0) {
+        app_debug("NORMAL WSPR frame build failed\r\n");
+      } else {
+        (void)snprintf(debug_line, sizeof(debug_line),
+                       "NORMAL WSPR TX start: %s\r\n", frame.text);
+        app_debug(debug_line);
+        if (wspr_radio_service_send(&wspr_radio, &frame,
+                                    wspr_radio_gnss_poll, &gnss) == 0) {
+          app_debug("NORMAL WSPR TX complete\r\n");
+        } else {
+          app_debug("NORMAL WSPR TX failed\r\n");
+        }
+      }
     }
     HAL_Delay(10U);
   }

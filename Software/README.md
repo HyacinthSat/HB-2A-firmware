@@ -2,7 +2,7 @@
 
 正式程序按功能拆分。`App` 只负责任务流程和服务编排，硬件访问、协议编码和外设驱动分别放在独立模块中。
 
-GNSS 启动流程、遥测组合层和 APRS 下行已经在实板验证通过。当前里程碑补上了 WSPR 遥测编码：从同一份遥测快照生成压缩呼号、网格、功率和 162 个符号，并打印编码输入；SI5351 射频时隙仍单独接入。测试工程 `D:/项目/202602 风信子气球/HyacinthBalloon/code` 保持不变，后续确认过的驱动再逐个接入正式主流程。
+GNSS 启动流程、遥测组合层、APRS 下行和 WSPR 编码已经在实板验证通过。本里程碑接入 SI5351 服务：检测器件、按 GNSS UTC 触发首个偶数分钟标准 WSPR，后续执行 `:02` 标准帧和 `:04` 编码遥测帧，并按 162 个符号的 1.5 kHz/8192 音调步进实际下发。测试工程 `D:/项目/202602 风信子气球/HyacinthBalloon/code` 保持不变。
 
 计划的模块边界：
 
@@ -12,7 +12,8 @@ GNSS 启动流程、遥测组合层和 APRS 下行已经在实板验证通过。
 - `sx1278_radio`：SX1278 初始化、收发和参数切换。
 - `camera_service`：摄像头选择、拍照和 JPG 文件交付。
 - `aprs_service`：APRS 频点选择、AX.25/1200 bps 下行和转发。
-- `wspr_service`：WSPR 编码、时隙和 SI5351 下行。
+- `wspr_service`：WSPR 编码和标准/遥测帧构造。
+- `wspr_radio_service`：SI5351 检测、WSPR 162 符号定时和射频输出。
 - `experiment_service`：GMSK 常规下行和动态高速 SSDV 传输。
 - `storage_service`：Flash 图片目录、编号和最旧图片覆盖。
 
