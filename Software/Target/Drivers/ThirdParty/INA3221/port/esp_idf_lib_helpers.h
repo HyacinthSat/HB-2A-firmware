@@ -1,0 +1,1 @@
+#define HELPER_TARGET_IS_ESP32 0

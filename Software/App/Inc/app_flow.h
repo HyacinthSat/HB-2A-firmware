@@ -1,0 +1,58 @@
+#ifndef HB2A_APP_FLOW_H
+#define HB2A_APP_FLOW_H
+
+#include <stdint.h>
+
+typedef enum {
+  APP_MODE_BOOT = 0,
+  APP_MODE_GNSS_WAIT,
+  APP_MODE_NORMAL,
+  APP_MODE_EXPERIMENT,
+  APP_MODE_HS_NEGOTIATION,
+  APP_MODE_HS_TRANSFER,
+} AppMode;
+
+typedef enum {
+  APP_EVENT_NONE = 0,
+  APP_EVENT_BOOT_CHECK_DONE,
+  APP_EVENT_GNSS_LOCKED,
+  APP_EVENT_GNSS_TIMEOUT,
+  APP_EVENT_VALID_EXPR,
+  APP_EVENT_VALID_CAPTURE,
+  APP_EVENT_VALID_FILE_REQUEST,
+  APP_EVENT_HS_PARAMETERS_ACCEPTED,
+  APP_EVENT_HS_CONFIRM,
+  APP_EVENT_HS_CANCEL,
+  APP_EVENT_HS_COMPLETE,
+  APP_EVENT_VALID_COMMAND,
+  APP_EVENT_TRANSFER_STARTED,
+  APP_EVENT_TRANSFER_FINISHED,
+  APP_EVENT_EXPERIMENT_TIMEOUT,
+} AppEvent;
+
+typedef enum {
+  APP_ACTION_NONE = 0,
+  APP_ACTION_WAIT_GNSS,
+  APP_ACTION_RESET_GNSS,
+  APP_ACTION_RESTART_MCU,
+  APP_ACTION_ENTER_NORMAL,
+  APP_ACTION_ENTER_EXPERIMENT,
+  APP_ACTION_START_NEGOTIATION,
+  APP_ACTION_SEND_CONNECTION_INFO,
+  APP_ACTION_START_TRANSFER,
+  APP_ACTION_CANCEL_TRANSFER,
+  APP_ACTION_EXIT_EXPERIMENT,
+} AppAction;
+
+typedef struct {
+  AppMode mode;
+  uint8_t gnss_timeout_count;
+  uint8_t transfer_active;
+  uint8_t experiment_timer_paused;
+} AppFlow;
+
+void app_flow_init(AppFlow *flow);
+AppAction app_flow_dispatch(AppFlow *flow, AppEvent event);
+AppMode app_flow_mode(const AppFlow *flow);
+
+#endif

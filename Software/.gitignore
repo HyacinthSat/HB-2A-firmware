@@ -1,0 +1,6 @@
+Target/MDK-ARM/.Objects/
+Target/MDK-ARM/DebugConfig/
+Target/MDK-ARM/*.log
+Target/MDK-ARM/*.uvoptx
+Target/MDK-ARM/*.uvguix.*
+Tests/bin/
