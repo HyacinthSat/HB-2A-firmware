@@ -2,7 +2,7 @@
 
 正式程序按功能拆分。`App` 只负责任务流程和服务编排，硬件访问、协议编码和外设驱动分别放在独立模块中。
 
-当前第一步只实现与硬件无关的主流程状态机，并用主机测试验证状态跳转。测试工程 `D:/项目/202602 风信子气球/HyacinthBalloon/code` 保持不变，后续确认过的驱动再逐个移入正式工程。
+GNSS 启动流程已经在实板验证通过。当前第二个里程碑完成了与硬件发送无关的遥测组合层，并用主机测试验证位置、UTC、传感器有效性、APRS 文本和 WSPR 输入使用同一份快照。测试工程 `D:/项目/202602 风信子气球/HyacinthBalloon/code` 保持不变，后续确认过的驱动再逐个接入正式主流程。
 
 计划的模块边界：
 
@@ -15,4 +15,16 @@
 - `wspr_service`：WSPR 编码、时隙和 SI5351 下行。
 - `experiment_service`：GMSK 常规下行和动态高速 SSDV 传输。
 - `storage_service`：Flash 图片目录、编号和最旧图片覆盖。
+
+## 主机测试
+
+在仓库根目录执行：
+
+```powershell
+gcc -std=c11 -Wall -Wextra -Werror -ISoftware/App/Inc -ISoftware/Target/Core/Inc `
+  Software/Tests/test_telemetry_service.c Software/App/Src/telemetry_service.c `
+  Software/Target/Core/Src/aprs.c Software/Target/Core/Src/sensor_format.c `
+  Software/Target/Core/Src/u4b_telemetry.c -o Software/Tests/bin/test_telemetry_service.exe
+Software/Tests/bin/test_telemetry_service.exe
+```
 

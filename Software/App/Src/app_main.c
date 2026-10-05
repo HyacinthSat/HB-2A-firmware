@@ -2,7 +2,10 @@
 
 #include "app_flow.h"
 #include "gnss_service.h"
+#include "i2c.h"
 #include "main.h"
+#include "sensors.h"
+#include "telemetry_service.h"
 #include "usart.h"
 
 #include <string.h>
@@ -46,6 +49,47 @@ static int gnss_startup(GnssService *service)
   return -1;
 }
 
+static void telemetry_report(const GnssService *gnss)
+{
+  const GnssSolution *solution;
+  TelemetryGnssSnapshot snapshot;
+  SensorSample sensors;
+  TelemetryFrame frame;
+  uint8_t health_mask;
+
+  if (gnss == 0) return;
+  solution = gnss_service_solution(gnss);
+  if (solution == 0) return;
+  memset(&snapshot, 0, sizeof(snapshot));
+  snapshot.position_valid = solution->position_valid;
+  snapshot.utc_valid = solution->utc_valid;
+  snapshot.fully_resolved = solution->fully_resolved;
+  snapshot.latitude_e7 = solution->latitude_e7;
+  snapshot.longitude_e7 = solution->longitude_e7;
+  snapshot.height_msl_mm = solution->height_msl_mm;
+  snapshot.ground_speed_mm_s = solution->ground_speed_mm_s;
+  snapshot.year = solution->year;
+  snapshot.month = solution->month;
+  snapshot.day = solution->day;
+  snapshot.hour = solution->hour;
+  snapshot.minute = solution->minute;
+  snapshot.second = solution->second;
+  Sensors_Get(&sensors);
+  health_mask = 0U;
+  if ((sensors.valid & SENSOR_RAILS_VALID) != 0U) health_mask |= (uint8_t)(1U << 2);
+  if (snapshot.position_valid != 0U) health_mask |= (uint8_t)(1U << 4);
+  if (telemetry_service_build(&snapshot, &sensors, health_mask, &frame) != 0) {
+    app_debug("NORMAL telemetry build failed\r\n");
+    return;
+  }
+  app_debug("NORMAL APRS telemetry: ");
+  app_debug(frame.aprs_text);
+  app_debug("\r\n");
+  app_debug(frame.wspr_ready != 0U ?
+            "NORMAL WSPR telemetry ready\r\n" :
+            "NORMAL WSPR telemetry waiting for valid sensors\r\n");
+}
+
 void app_main(void)
 {
   AppFlow flow;
@@ -64,9 +108,19 @@ void app_main(void)
   }
   (void)app_flow_dispatch(&flow, APP_EVENT_GNSS_LOCKED);
   app_debug("HB-2A formal software: GNSS_WAIT -> NORMAL\r\n");
+  MX_I2C3_Init();
+  Sensors_Init();
+  app_debug("NORMAL sensors initialized\r\n");
+  telemetry_report(&gnss);
 
+  uint32_t next_telemetry_report = HAL_GetTick() + 60000U;
   for (;;) {
     gnss_service_poll(&gnss);
+    Sensors_Poll();
+    if ((int32_t)(HAL_GetTick() - next_telemetry_report) >= 0) {
+      telemetry_report(&gnss);
+      next_telemetry_report += 60000U;
+    }
     HAL_Delay(10U);
   }
 }

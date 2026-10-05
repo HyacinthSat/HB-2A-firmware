@@ -415,6 +415,11 @@
               <FilePath>../../App/Src/gnss_service.c</FilePath>
             </File>
             <File>
+              <FileName>telemetry_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../App/Src/telemetry_service.c</FilePath>
+            </File>
+            <File>
               <FileName>gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/gpio.c</FilePath>
