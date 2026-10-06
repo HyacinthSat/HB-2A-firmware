@@ -81,7 +81,7 @@
           </BeforeMake>
           <AfterMake>
             <RunUserProg1>0</RunUserProg1>
-            <RunUserProg2>1</RunUserProg2>
+            <RunUserProg2>0</RunUserProg2>
             <UserProg1Name></UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
@@ -425,6 +425,11 @@
               <FilePath>../../App/Src/aprs_service.c</FilePath>
             </File>
             <File>
+              <FileName>aprs_schedule_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../App/Src/aprs_schedule_service.c</FilePath>
+            </File>
+            <File>
               <FileName>wspr_service.c</FileName>
               <FileType>1</FileType>
               <FilePath>../../App/Src/wspr_service.c</FilePath>
@@ -433,6 +438,11 @@
               <FileName>wspr_radio_service.c</FileName>
               <FileType>1</FileType>
               <FilePath>../../App/Src/wspr_radio_service.c</FilePath>
+            </File>
+            <File>
+              <FileName>startup_selftest_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../App/Src/startup_selftest_service.c</FilePath>
             </File>
             <File>
               <FileName>gpio.c</FileName>
@@ -513,6 +523,11 @@
               <FileName>sx1278_aprs.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/sx1278_aprs.c</FilePath>
+            </File>
+            <File>
+              <FileName>flash_selftest.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/flash_selftest.c</FilePath>
             </File>
             <File>
               <FileName>ssdv.c</FileName>

@@ -4,6 +4,9 @@
 #include "gpio.h"
 #include "usart.h"
 
+#include <stdio.h>
+#include <string.h>
+
 static void board_release_resets(void)
 {
   HAL_Delay(10U);
@@ -50,11 +53,20 @@ void SystemClock_Config(void)
 
 int main(void)
 {
+  uint32_t reset_flags = RCC->CSR;
+  char reset_line[64];
+
   HAL_Init();
   SystemClock_Config();
   MX_GPIO_Init();
   board_release_resets();
   MX_UART4_Init();
+  (void)snprintf(reset_line, sizeof(reset_line),
+                 "HB-2A reset CSR=0x%08lX\r\n",
+                 (unsigned long)reset_flags);
+  (void)HAL_UART_Transmit(&huart4, (uint8_t *)reset_line,
+                          (uint16_t)strlen(reset_line), 1000U);
+  __HAL_RCC_CLEAR_RESET_FLAGS();
   app_main();
   return 0;
 }

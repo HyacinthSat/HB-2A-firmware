@@ -74,7 +74,9 @@ int telemetry_service_build(const TelemetryGnssSnapshot *gnss,
   fill_position_sample(gnss, position_valid, &out->wspr_sample);
   fill_sensor_sample(sensors, &out->wspr_sample, &out->sensor_data_valid);
   U4B_BuildBasic(&out->wspr_sample, APP_WSPR_ID13, &out->wspr_message);
-  out->wspr_ready = out->sensor_data_valid;
+  /* Missing sensors are represented by zero/default fields in the U4B frame;
+     keep the telemetry slot usable and expose validity through health bits. */
+  out->wspr_ready = 1U;
 
   if (gnss != NULL && gnss->utc_valid != 0U && gnss->fully_resolved != 0U) {
     out->aprs_utc.valid = 1U;

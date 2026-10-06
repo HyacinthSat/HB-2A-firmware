@@ -50,7 +50,7 @@ static void test_invalid_position_and_sensor(void)
   assert(telemetry_service_build(&gnss, &sensors, 0U, &frame) == 0);
   assert(frame.position_valid == 0U);
   assert(frame.sensor_data_valid == 0U);
-  assert(frame.wspr_ready == 0U);
+  assert(frame.wspr_ready == 1U);
   assert(frame.wspr_sample.latitude_e7 == 0);
   assert(frame.wspr_sample.longitude_e7 == 0);
   assert(frame.wspr_sample.gps_valid == 0U);

@@ -17,6 +17,7 @@
 #define APP_WSPR_TELEMETRY_MINUTE     4U
 #define APP_WSPR_DEFAULT_POWER_DBM    10U
 #define APP_WSPR_SYMBOL_COUNT         162U
+#define APP_WSPR_FRAME_DURATION_MS   110592UL
 
 /* Centre of the OM68FA subsquare; consistent with the WSPR test locator. */
 #define APP_TEST_GRID56               "FA"
@@ -30,8 +31,8 @@
 #define APP_INDOOR_WSPR_PERIOD_MS     120000UL
 /* Due APRS bursts wait for the RF-off gap; missed periods are not replayed. */
 #define APP_INDOOR_APRS_PERIOD_MS     30000UL
-#define APP_APRS_REPEAT_COUNT         3U
-#define APP_APRS_REPEAT_GAP_MS        1000UL
+#define APP_APRS_REPEAT_COUNT         2U
+#define APP_APRS_REPEAT_GAP_MS        3000UL
 /* Actual encoded length is checked against the remaining time before TX. */
 #define APP_APRS_SLOT_GUARD_MS        300UL
 #define APP_APRS_POWER_DBM            10U /* PA_BOOST setting, not a measured power */

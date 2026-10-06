@@ -21,5 +21,8 @@ int wspr_radio_service_send(WsprRadioService *service,
                             const WsprFrame *frame,
                             WsprRadioPollFn poll,
                             void *poll_context);
+int wspr_radio_service_carrier_test(WsprRadioService *service,
+                                     uint32_t frequency_hz,
+                                     uint32_t duration_ms);
 
 #endif

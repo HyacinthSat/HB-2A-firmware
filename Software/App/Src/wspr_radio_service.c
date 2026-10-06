@@ -78,3 +78,20 @@ int wspr_radio_service_send(WsprRadioService *service,
   service->last_error = 0;
   return 0;
 }
+
+int wspr_radio_service_carrier_test(WsprRadioService *service,
+                                    uint32_t frequency_hz,
+                                    uint32_t duration_ms)
+{
+  if (service == NULL || service->initialized == 0U ||
+      service->transmitting != 0U || frequency_hz == 0U ||
+      duration_ms == 0U || duration_ms > 5000U) return -1;
+  service->transmitting = 1U;
+  si5351_SetupCLK0((int32_t)frequency_hz, SI5351_DRIVE_STRENGTH_8MA);
+  si5351_EnableOutputs(1U);
+  HAL_Delay(duration_ms);
+  si5351_EnableOutputs(0U);
+  service->transmitting = 0U;
+  service->last_error = 0;
+  return 0;
+}

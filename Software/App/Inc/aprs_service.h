@@ -14,10 +14,21 @@ typedef struct {
   int last_error;
 } AprsService;
 
+typedef void (*AprsServicePollFn)(void *context);
+
 int aprs_service_init(AprsService *service);
 int aprs_service_send_text(AprsService *service, uint32_t frequency_hz,
                            const char *text, size_t length);
+int aprs_service_send_text_with_poll(AprsService *service,
+                                     uint32_t frequency_hz,
+                                     const char *text, size_t length,
+                                     AprsServicePollFn poll,
+                                     void *context);
 int aprs_service_send_telemetry(AprsService *service,
                                 const TelemetryFrame *frame);
+int aprs_service_send_telemetry_with_poll(AprsService *service,
+                                          const TelemetryFrame *frame,
+                                          AprsServicePollFn poll,
+                                          void *context);
 
 #endif

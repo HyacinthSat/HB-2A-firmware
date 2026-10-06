@@ -34,10 +34,19 @@ int main(void)
   assert(strstr(frame.text, "dBm") != NULL);
   assert(frame.symbols[0] <= 3U && frame.symbols[161] <= 3U);
 
-  assert(wspr_service_build_standard(&frame) == 0);
+  assert(wspr_service_build_standard(&telemetry, &frame) == 0);
   assert(strcmp(frame.callsign, "BG7ZDQ") == 0);
   assert(strcmp(frame.grid, "OM68") == 0);
   assert(frame.power_dbm == 10U);
+  assert(frame.ready == 1U);
+
+  TelemetryFrame fallback;
+  SensorSample missing_sensors = {0};
+  TelemetryGnssSnapshot missing_gnss = {0};
+  assert(telemetry_service_build(&missing_gnss, &missing_sensors, 0U,
+                                 &fallback) == 0);
+  assert(fallback.wspr_ready == 1U);
+  assert(wspr_service_build(&fallback, &frame) == 0);
   assert(frame.ready == 1U);
 
   telemetry.wspr_ready = 0U;

@@ -20,6 +20,16 @@ int aprs_service_init(AprsService *service)
 int aprs_service_send_text(AprsService *service, uint32_t frequency_hz,
                            const char *text, size_t length)
 {
+  return aprs_service_send_text_with_poll(service, frequency_hz, text, length,
+                                           NULL, NULL);
+}
+
+int aprs_service_send_text_with_poll(AprsService *service,
+                                     uint32_t frequency_hz,
+                                     const char *text, size_t length,
+                                     AprsServicePollFn poll,
+                                     void *context)
+{
   int duration;
   int result;
   if (service == NULL || service->initialized == 0U ||
@@ -29,7 +39,9 @@ int aprs_service_send_text(AprsService *service, uint32_t frequency_hz,
     service->last_error = duration;
     return duration;
   }
-  result = SX1278_APRS_Send(frequency_hz, (uint32_t)duration + 300U, NULL);
+  result = SX1278_APRS_SendWithContext(frequency_hz,
+                                       (uint32_t)duration + 300U,
+                                       poll, context);
   service->last_error = result;
   if (result == 0) {
     service->last_frequency_hz = frequency_hz;
@@ -41,11 +53,20 @@ int aprs_service_send_text(AprsService *service, uint32_t frequency_hz,
 int aprs_service_send_telemetry(AprsService *service,
                                 const TelemetryFrame *frame)
 {
+  return aprs_service_send_telemetry_with_poll(service, frame, NULL, NULL);
+}
+
+int aprs_service_send_telemetry_with_poll(AprsService *service,
+                                          const TelemetryFrame *frame,
+                                          AprsServicePollFn poll,
+                                          void *context)
+{
   const char *separator;
   if (frame == NULL) return -1;
   separator = strchr(frame->aprs_text, ':');
   if (separator == NULL || separator[1] == 0) return -2;
-  return aprs_service_send_text(service, frame->aprs_frequency_hz,
-                                frame->aprs_text + (separator - frame->aprs_text) + 1U,
-                                strlen(separator + 1U));
+  return aprs_service_send_text_with_poll(
+      service, frame->aprs_frequency_hz,
+      frame->aprs_text + (separator - frame->aprs_text) + 1U,
+      strlen(separator + 1U), poll, context);
 }

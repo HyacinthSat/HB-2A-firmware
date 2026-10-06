@@ -17,7 +17,7 @@ HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *handle, uint8_t *byte,
   return HAL_OK;
 }
 
-HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *handle, uint8_t *data,
+HAL_StatusTypeDef HAL_UART_Transmit(UART_HandleTypeDef *handle, const uint8_t *data,
                                     uint16_t length, uint32_t timeout)
 {
   (void)data;

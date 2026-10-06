@@ -13,11 +13,15 @@
 #include <string.h>
 
 #define REG_MODE 0x01U
+#define REG_DATA_MODUL 0x02U
 #define REG_IRQ1 0x3EU
 #define MODE_SLEEP 0x08U
 #define MODE_STANDBY 0x09U
 #define MODE_FSTX 0x0AU
 #define MODE_TX 0x0BU
+/* RegDataModul[1:0]=10 selects continuous FSK. 0x80 is variable-length
+   packet mode and ignores the asynchronous DIO2 waveform used by APRS. */
+#define DATA_MODE_CONTINUOUS 0x02U
 #define MODE_CHANGE_TIMEOUT_MS 20U
 
 static AFSK_Stream stream;
@@ -27,13 +31,20 @@ static volatile uint8_t playing;
 static uint32_t timer_base, timer_remainder, timer_fraction;
 static uint8_t version_reads[3];
 static struct {
-  uint8_t mode, irq1, irq2, frf[3], pa, ramp, ocp, packet, tcxo, dac, fdev[2];
+  uint8_t mode, irq1, irq2, datamod, frf[3], pa, ramp, ocp, packet, tcxo, dac, fdev[2];
   uint8_t valid;
   uint8_t direct_fallback;
   int result;
 } tx_state;
 static volatile uint32_t emitted_samples, data_edges;
 static int previous_level;
+static void (*legacy_service)(void);
+
+static void legacy_service_adapter(void *context)
+{
+  (void)context;
+  if (legacy_service != NULL) legacy_service();
+}
 /* Preserve the first failure through standby cleanup and diagnostic reads. */
 static struct {
   uint8_t stage, reg, expected, actual;
@@ -171,7 +182,8 @@ static int capture_tx(void)
 {
   tx_state.valid = 0U;
   if (reg_read(REG_MODE, &tx_state.mode) || reg_read(REG_IRQ1, &tx_state.irq1) ||
-      reg_read(0x3FU, &tx_state.irq2) || reg_read(0x09U, &tx_state.pa) ||
+      reg_read(0x3FU, &tx_state.irq2) || reg_read(REG_DATA_MODUL, &tx_state.datamod) ||
+      reg_read(0x09U, &tx_state.pa) ||
       reg_read(0x0AU, &tx_state.ramp) || reg_read(0x0BU, &tx_state.ocp) ||
       reg_read(0x31U, &tx_state.packet) || reg_read(0x4BU, &tx_state.tcxo) ||
       reg_read(0x4DU, &tx_state.dac)) return -1;
@@ -202,7 +214,8 @@ static int begin_tx(uint32_t frequency_hz)
       checked_write(0x08U, (uint8_t)frf)) return -3;
   if (checked_write(REG_MODE, MODE_FSTX) || wait_flag(0x10U)) return -6;
   if (checked_write(REG_MODE, MODE_TX) || wait_flag(0xB0U)) return -7;
-  if (capture_tx() || tx_still_active()) return -8;
+  if (capture_tx() || tx_state.datamod != DATA_MODE_CONTINUOUS ||
+      tx_still_active()) return -8;
   return 0;
 }
 
@@ -210,9 +223,9 @@ void SX1278_APRS_TxReport(char *out, size_t capacity)
 {
   if (!out || !capacity) return;
   (void)snprintf(out, capacity,
-    "SX TX snapshot valid=%u rc=%d direct=%u mode=%02X irq1=%02X irq2=%02X frf=%02X%02X%02X pa=%02X ramp=%02X ocp=%02X pkt=%02X tcxo=%02X dac=%02X dev=%02X%02X samples=%lu edges=%lu\r\n",
+    "SX TX snapshot valid=%u rc=%d direct=%u mode=%02X irq1=%02X irq2=%02X datamod=%02X frf=%02X%02X%02X pa=%02X ramp=%02X ocp=%02X pkt=%02X tcxo=%02X dac=%02X dev=%02X%02X samples=%lu edges=%lu\r\n",
     tx_state.valid, tx_state.result, tx_state.direct_fallback, tx_state.mode, tx_state.irq1, tx_state.irq2,
-    tx_state.frf[0], tx_state.frf[1], tx_state.frf[2], tx_state.pa, tx_state.ramp,
+    tx_state.datamod, tx_state.frf[0], tx_state.frf[1], tx_state.frf[2], tx_state.pa, tx_state.ramp,
     tx_state.ocp, tx_state.packet, tx_state.tcxo, tx_state.dac,
     tx_state.fdev[0], tx_state.fdev[1], (unsigned long)emitted_samples, (unsigned long)data_edges);
 }
@@ -236,7 +249,7 @@ int SX1278_APRS_CarrierTest(uint32_t frequency_hz, uint32_t duration_ms, void (*
     first_failure.stage = 0U;
     tx_state.direct_fallback = 1U; /* Records the attempt, including failures. */
     if (checked_write(REG_MODE, MODE_TX) || wait_flag(0xA0U)) result = -7;
-    else if (capture_tx()) result = -8;
+    else if (capture_tx() || tx_state.datamod != DATA_MODE_CONTINUOUS) result = -8;
     else result = 1; /* TX ready was observed; RF output is still unverified. */
   }
   if (result < 0) (void)capture_tx();
@@ -257,6 +270,24 @@ int SX1278_APRS_CarrierTest(uint32_t frequency_hz, uint32_t duration_ms, void (*
   }
   tx_state.result = result;
   return result;
+}
+
+int SX1278_APRS_SetPowerDbm(uint8_t dbm)
+{
+  uint8_t pa_dac;
+  uint8_t output_power;
+
+  if (!ready || dbm < 2U || dbm > 20U || playing) return -1;
+  if (dbm == 20U) {
+    pa_dac = 0x87U;
+    output_power = 15U;
+  } else {
+    pa_dac = 0x84U;
+    output_power = (uint8_t)(dbm - 2U);
+  }
+  if (checked_write(0x4DU, pa_dac) ||
+      checked_write(0x09U, (uint8_t)(0x80U | output_power))) return -2;
+  return 0;
 }
 
 void SX1278_APRS_ConfigError(char *out, size_t capacity)
@@ -360,7 +391,9 @@ int SX1278_APRS_Init(uint8_t *version)
     {REG_MODE, MODE_SLEEP}, {0x4BU, 0x19U},
     {0x09U, (uint8_t)(0x80U | (APP_APRS_POWER_DBM - 2U))},
     {0x4DU, 0x84U}, {0x0BU, 0x2BU}, {0x0AU, 0x09U},
-    {0x02U, 0x1AU}, {0x03U, 0x0BU}, /* inactive for unshaped async TX */
+    /* Continuous FSK with asynchronous data on DIO2.  RegDataModul[1:0]
+       must be 10b; packet mode (including 0x80) does not use DIO2 input. */
+    {REG_DATA_MODUL, DATA_MODE_CONTINUOUS}, {0x03U, 0x0BU},
     {0x04U, 0x00U}, {0x05U, 49U},
     {0x30U, 0x00U}, {0x31U, 0x00U}, /* no HW CRC/whitening; continuous */
     {0x40U, 0x00U}, {0x41U, 0x00U}, {REG_MODE, MODE_STANDBY}
@@ -392,7 +425,8 @@ int SX1278_APRS_PrepareAddressed(const char *source, const char *destination,
   return (int)AFSK_DurationMs(&stream);
 }
 
-int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms, void (*service)(void))
+int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
+                                SX1278_APRS_ServiceFn service, void *context)
 {
   if (!ready || playing || stream.count == 0U) return -1;
   if (frequency_hz < 137000000UL || frequency_hz > 175000000UL ||
@@ -438,10 +472,23 @@ int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms, void (*service)(
       if (tx_still_active()) { result = -8; break; }
       last_check = HAL_GetTick();
     }
-    if (service != NULL) service();
+    if (service != NULL) service(context);
   }
   if (!result && tx_still_active()) result = -8;
   if (stop_radio()) result = -5;
   tx_state.result = result;
+  return result;
+}
+
+int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms,
+                     void (*service)(void))
+{
+  int result;
+
+  legacy_service = service;
+  result = SX1278_APRS_SendWithContext(
+      frequency_hz, budget_ms,
+      service == NULL ? NULL : legacy_service_adapter, NULL);
+  legacy_service = NULL;
   return result;
 }

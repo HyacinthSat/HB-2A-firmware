@@ -20,6 +20,7 @@ typedef struct {
 } WsprFrame;
 
 int wspr_service_build(const TelemetryFrame *telemetry, WsprFrame *out);
-int wspr_service_build_standard(WsprFrame *out);
+int wspr_service_build_standard(const TelemetryFrame *telemetry,
+                                WsprFrame *out);
 
 #endif
