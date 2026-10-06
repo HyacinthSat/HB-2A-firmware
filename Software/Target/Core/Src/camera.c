@@ -326,7 +326,7 @@ static void camera_power_on(CameraPort port)
   camera_log("CAM power done\r\n");
 }
 
-int camera_init(CameraPort port)
+int camera_init_resolution(CameraPort port, uint32_t resolution)
 {
   OV5640_IO_t io = {0};
   uint32_t id = 0U;
@@ -369,7 +369,7 @@ int camera_init(CameraPort port)
   if (OV5640_ReadID(&camera_sensor, &id) != OV5640_OK) return -2;
   if (id != 0x5640U) return -3;
   camera_log("CAM configure\r\n");
-  if (OV5640_Init(&camera_sensor, OV5640_R640x480, OV5640_JPEG) != OV5640_OK) return -4;
+  if (OV5640_Init(&camera_sensor, resolution, OV5640_JPEG) != OV5640_OK) return -4;
   /* XCLK is 8 MHz from PC7, while the ST helper assumes a 24 MHz
      input. Keep the same internal/PCLK rates by multiplying 3x:
      0x3036=0xC0 with the 0x3037=0x16 divider gives the same
@@ -411,6 +411,11 @@ int camera_init(CameraPort port)
   HAL_Delay(1500U);
   camera_log_state("init-settled");
   return 0;
+}
+
+int camera_init(CameraPort port)
+{
+  return camera_init_resolution(port, OV5640_R640x480);
 }
 
 int camera_capture(uint8_t **jpeg, uint32_t *length)

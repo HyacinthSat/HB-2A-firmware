@@ -8,6 +8,8 @@
 #define APP_SX1278_NSS_TEST_ON_FAILURE 1U
 /* Temporary RF diagnosis: one bounded carrier before startup APRS, indoor only. */
 #define APP_SX1278_CARRIER_TEST_MS     0U
+/* Images are captured from the 06-minute APRS boundary onward. */
+#define APP_STARTUP_SSDV_TEST           0U
 
 #define APP_WSPR_CALL                 "BG7ZDQ"
 #define APP_WSPR_DEFAULT_GRID         "OM68"
@@ -47,7 +49,7 @@
 /* Image and telemetry packets use the same project destination. */
 #define APP_SSDV_APRS_DEST            APP_APRS_PATH
 
-/* Test startup: APRS -> CAM_A -> CAM_B -> reference -> WSPR, no GNSS gate. */
+/* Test startup: after GNSS lock, capture 256x192 CAM_A then CAM_B over APRS. */
 /* Sensor-generated color bars for both cameras. Set to 0 for live images. */
 #define APP_CAMERA_COLORBAR_TEST      0U
 #define APP_CAMERA_WARMUP_COUNT      20U
@@ -70,7 +72,7 @@
 #define APP_GNSS_DYN_MODEL             6U
 #define APP_SSDV_PACKET_SIZE          256U
 #define APP_SSDV_FEED_SIZE            128U
-#define APP_SSDV_QUALITY              2
+#define APP_SSDV_QUALITY              5
 /* The internal reference image is diagnostic-only; keep VGA resolution but
    use the smallest SSDV quantisation to avoid a 15-minute APRS transfer. */
 #define APP_FACTORY_SSDV_QUALITY      0

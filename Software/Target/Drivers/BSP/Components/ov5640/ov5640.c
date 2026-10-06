@@ -392,7 +392,7 @@ int32_t OV5640_Init(OV5640_Object_t *pObj, uint32_t Resolution, uint32_t PixelFo
   if (pObj->IsInitialized == 0U)
   {
     /* Check if resolution is supported */
-    if ((Resolution > OV5640_R800x480) ||
+    if ((Resolution > OV5640_R256x192) ||
         ((PixelFormat != OV5640_RGB565) && (PixelFormat != OV5640_YUV422) &&
          (PixelFormat != OV5640_RGB888) && (PixelFormat != OV5640_Y8) &&
          (PixelFormat != OV5640_JPEG)))
@@ -765,8 +765,26 @@ int32_t OV5640_SetResolution(OV5640_Object_t *pObj, uint32_t Resolution)
     {OV5640_TIMING_DVPVO_LOW, 0x78},
   };
 
+  /* Initialization sequence for the balloon SSDV resolution (128x96). */
+  static const uint16_t OV5640_SSDV[][2] =
+  {
+    {OV5640_TIMING_DVPHO_HIGH, 0x00},
+    {OV5640_TIMING_DVPHO_LOW,  0x80},
+    {OV5640_TIMING_DVPVO_HIGH, 0x00},
+    {OV5640_TIMING_DVPVO_LOW,  0x60},
+  };
+
+  /* Temporary startup validation resolution (256x192). */
+  static const uint16_t OV5640_VALIDATION[][2] =
+  {
+    {OV5640_TIMING_DVPHO_HIGH, 0x01},
+    {OV5640_TIMING_DVPHO_LOW,  0x00},
+    {OV5640_TIMING_DVPVO_HIGH, 0x00},
+    {OV5640_TIMING_DVPVO_LOW,  0xC0},
+  };
+
   /* Check if resolution is supported */
-  if (Resolution > OV5640_R800x480)
+  if (Resolution > OV5640_R256x192)
   {
     ret = OV5640_ERROR;
   }
@@ -834,6 +852,32 @@ int32_t OV5640_SetResolution(OV5640_Object_t *pObj, uint32_t Resolution)
           {
             tmp = (uint8_t)OV5640_WVGA[index][1];
             if (ov5640_write_reg(&pObj->Ctx, OV5640_WVGA[index][0], &tmp, 1) != OV5640_OK)
+            {
+              ret = OV5640_ERROR;
+            }
+          }
+        }
+        break;
+      case OV5640_R128x96:
+        for (index = 0; index < (sizeof(OV5640_SSDV) / 4U); index++)
+        {
+          if (ret != OV5640_ERROR)
+          {
+            tmp = (uint8_t)OV5640_SSDV[index][1];
+            if (ov5640_write_reg(&pObj->Ctx, OV5640_SSDV[index][0], &tmp, 1) != OV5640_OK)
+            {
+              ret = OV5640_ERROR;
+            }
+          }
+        }
+        break;
+      case OV5640_R256x192:
+        for (index = 0; index < (sizeof(OV5640_VALIDATION) / 4U); index++)
+        {
+          if (ret != OV5640_ERROR)
+          {
+            tmp = (uint8_t)OV5640_VALIDATION[index][1];
+            if (ov5640_write_reg(&pObj->Ctx, OV5640_VALIDATION[index][0], &tmp, 1) != OV5640_OK)
             {
               ret = OV5640_ERROR;
             }
@@ -916,6 +960,16 @@ int32_t OV5640_GetResolution(OV5640_Object_t *pObj, uint32_t *Resolution)
           else if ((x_size == 160U) && (y_size == 120U))
           {
             *Resolution = OV5640_R160x120;
+            ret = OV5640_OK;
+          }
+          else if ((x_size == 128U) && (y_size == 96U))
+          {
+            *Resolution = OV5640_R128x96;
+            ret = OV5640_OK;
+          }
+          else if ((x_size == 256U) && (y_size == 192U))
+          {
+            *Resolution = OV5640_R256x192;
             ret = OV5640_OK;
           }
           else

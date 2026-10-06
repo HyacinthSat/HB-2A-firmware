@@ -7,12 +7,16 @@
    normally fits, and an over-size frame is reported as a capture failure. */
 #define CAMERA_JPEG_BUFFER_SIZE (64U * 1024U - 4U)
 
+/* Temporary startup validation format: 128x96 doubled in both axes. */
+#define CAMERA_RESOLUTION_256X192 0x06U
+
 typedef enum {
   CAMERA_A = 0, /* CAM_A1, ground-facing */
   CAMERA_B = 1  /* CAM_B1, sky-facing */
 } CameraPort;
 
 int camera_init(CameraPort port);
+int camera_init_resolution(CameraPort port, uint32_t resolution);
 /* Read-only ISP/AWB/AEC snapshot, while the selected sensor is powered. */
 void camera_log_state(const char *phase);
 /* Stops sensor power/clock; the captured JPEG in RAM remains valid. */

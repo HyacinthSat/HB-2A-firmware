@@ -445,6 +445,11 @@
               <FilePath>../../App/Src/startup_selftest_service.c</FilePath>
             </File>
             <File>
+              <FileName>camera_ssdv_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../../App/Src/camera_ssdv_service.c</FilePath>
+            </File>
+            <File>
               <FileName>gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/gpio.c</FilePath>

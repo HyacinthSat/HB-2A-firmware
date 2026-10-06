@@ -135,6 +135,8 @@ typedef struct
 #define OV5640_R480x272                 0x02U   /* 480x272 Resolution         */
 #define OV5640_R640x480                 0x03U   /* VGA Resolution             */
 #define OV5640_R800x480                 0x04U   /* WVGA Resolution            */
+#define OV5640_R128x96                  0x05U   /* Balloon SSDV resolution     */
+#define OV5640_R256x192                 0x06U   /* Enlarged startup validation  */
 
 /* Camera Pixel Format */
 #define OV5640_RGB565                   0x00U   /* Pixel Format RGB565        */

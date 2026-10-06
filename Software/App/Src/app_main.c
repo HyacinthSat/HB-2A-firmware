@@ -5,6 +5,7 @@
 #include "aprs_schedule_service.h"
 #include "aprs_service.h"
 #include "camera.h"
+#include "camera_ssdv_service.h"
 #include "flash_selftest.h"
 #include "gnss_service.h"
 #include "i2c.h"
@@ -44,6 +45,9 @@ typedef struct {
 static StartupSelfTestReport g_selftest_report;
 static StartupSelfTestContext g_selftest_context;
 static StartupSelfTestPlan g_selftest_plan;
+static CameraPort g_ssdv_next_camera = CAMERA_A;
+static uint8_t g_ssdv_next_image_id;
+static uint64_t g_ssdv_last_group_slot = UINT64_MAX;
 
 static void app_debug(const char *text)
 {
@@ -381,6 +385,61 @@ static uint8_t wspr_start_imminent(const GnssSolution *solution)
                    (next_minute % 10U) == APP_WSPR_TELEMETRY_MINUTE);
 }
 
+static uint8_t ssdv_group_window(const GnssSolution *solution)
+{
+  uint8_t minute;
+  if (solution == NULL || solution->utc_valid == 0U ||
+      solution->fully_resolved == 0U) return 0U;
+  minute = (uint8_t)(solution->minute % 10U);
+  /* 06 APRS has completed before the first group; groups run at 06,07,08,09,00. */
+  return (uint8_t)(minute == 0U || minute == 6U || minute == 7U ||
+                   minute == 8U || minute == 9U);
+}
+
+static uint8_t ssdv_group_due(const GnssSolution *solution,
+                              uint64_t *slot_key)
+{
+  uint64_t key;
+  if (slot_key == NULL || ssdv_group_window(solution) == 0U ||
+      solution->second > 1U) return 0U;
+  key = gnss_minute_key(solution);
+  if (key == g_ssdv_last_group_slot) return 0U;
+  *slot_key = key;
+  return 1U;
+}
+
+static void ssdv_capture_after_aprs06(const GnssSolution *solution,
+                                      AprsService *aprs, GnssService *gnss)
+{
+  int result;
+  if (solution == NULL || aprs == NULL || gnss == NULL ||
+      solution->utc_valid == 0U || solution->fully_resolved == 0U ||
+      (solution->minute % 10U) != 6U) return;
+  if (camera_ssdv_active() == 0U) {
+    result = camera_ssdv_capture_start(aprs, gnss, g_ssdv_next_camera,
+                                       g_ssdv_next_image_id,
+                                       APP_SSDV_QUALITY, app_debug);
+    if (result == 0) {
+      g_ssdv_next_camera = g_ssdv_next_camera == CAMERA_A ? CAMERA_B : CAMERA_A;
+      ++g_ssdv_next_image_id;
+    } else {
+      app_debug("SSDV scheduled capture failed; retrying camera next 06\r\n");
+      return;
+    }
+  }
+  if (camera_ssdv_active() != 0U) {
+    const GnssSolution *after_capture = gnss_service_solution(gnss);
+    int group_result = camera_ssdv_send_next_group(aprs, gnss, app_debug);
+    if (after_capture != NULL)
+      g_ssdv_last_group_slot = gnss_minute_key(after_capture);
+    if (group_result < 0) {
+      app_debug("SSDV scheduled group failed\r\n");
+    } else if (group_result > 0) {
+      app_debug("SSDV scheduled image complete\r\n");
+    }
+  }
+}
+
 static void wspr_radio_gnss_poll(void *context)
 {
   gnss_service_poll((GnssService *)context);
@@ -515,6 +574,16 @@ void app_main(void)
   }
   (void)app_flow_dispatch(&flow, APP_EVENT_GNSS_LOCKED);
   app_debug("HB-2A formal software: GNSS_WAIT -> NORMAL\r\n");
+#if APP_STARTUP_SSDV_TEST
+  app_debug("SSDV startup test begin: CAM_A then CAM_B\r\n");
+  {
+    int image_result = camera_ssdv_run_sequence(
+        &aprs, &gnss, APP_SSDV_QUALITY, app_debug);
+    (void)snprintf(g_debug_line, sizeof(g_debug_line),
+                   "SSDV startup test complete rc=%d\r\n", image_result);
+    app_debug(g_debug_line);
+  }
+#endif
   Sensors_Init();
   app_debug("NORMAL sensors initialized\r\n");
   app_debug(wspr_radio.initialized != 0U ?
@@ -634,12 +703,29 @@ void app_main(void)
                              (unsigned long)aprs.tx_count,
                              (unsigned long)aprs.last_frequency_hz);
               app_debug(debug_line);
+              solution = gnss_service_solution(&gnss);
+              ssdv_capture_after_aprs06(solution, &aprs, &gnss);
             } else {
               app_debug("NORMAL APRS scheduled TX failed\r\n");
             }
           }
         } else {
           app_debug("NORMAL APRS scheduled telemetry unavailable\r\n");
+        }
+      }
+    }
+    solution = gnss_service_solution(&gnss);
+    if (aprs.initialized != 0U && camera_ssdv_active() != 0U &&
+        wspr_radio.transmitting == 0U &&
+        wspr_start_imminent(solution) == 0U) {
+      uint64_t group_slot;
+      if (ssdv_group_due(solution, &group_slot) != 0U) {
+        int group_result = camera_ssdv_send_next_group(&aprs, &gnss, app_debug);
+        g_ssdv_last_group_slot = group_slot;
+        if (group_result < 0) {
+          app_debug("SSDV scheduled group failed\r\n");
+        } else if (group_result > 0) {
+          app_debug("SSDV scheduled image complete\r\n");
         }
       }
     }
