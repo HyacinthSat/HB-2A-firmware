@@ -21,7 +21,6 @@ static int address(const char *call, uint8_t *out, uint8_t control)
     if (n == 6U || !((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) return -1;
     out[n++] = (uint8_t)((unsigned)c << 1);
   }
-  if (n == 0U) return -1;
   const char *suffix = call + n;
   for (; n < 6U; ++n) out[n] = (uint8_t)(' ' << 1);
   if (*suffix == '-') {
@@ -34,6 +33,18 @@ static int address(const char *call, uint8_t *out, uint8_t control)
     if (digits == 0U || ssid > 15U) return -1;
   }
   out[6] = (uint8_t)(0x60U | (ssid << 1) | control);
+  return 0;
+}
+
+static int path_address(const char *path, uint8_t *out)
+{
+  size_t n;
+  if (path == NULL || out == NULL) return -1;
+  n = strlen(path);
+  if (n == 0U || n > 6U) return -1;
+  memset(out, (int)(' ' << 1), 6U);
+  for (size_t i = 0U; i < n; ++i) out[i] = (uint8_t)((unsigned char)path[i] << 1);
+  out[6] = 0xE1U; /* SSID 0, reserved bits set, H bit set. */
   return 0;
 }
 
@@ -50,6 +61,30 @@ int AX25_Build(const char *source, const char *destination,
   out[length + 16U] = (uint8_t)crc;
   out[length + 17U] = (uint8_t)(crc >> 8);
   return (int)(length + 18U);
+}
+
+int AX25_BuildPath(const char *source, const char *destination,
+                   const char *path, const uint8_t *info, size_t length,
+                   uint8_t *out, size_t capacity)
+{
+  if (info == NULL || out == NULL || path == NULL ||
+      length > AX25_MAX_INFO || capacity < length + 25U) return -1;
+  if (address(destination, out, 0x80U) ||
+      address(source, out + 7U, 0x00U) ||
+      path_address(path, out + 14U)) return -2;
+  out[21] = 0x03U;
+  out[22] = 0xF0U;
+  memcpy(out + 23U, info, length);
+  {
+    uint16_t crc = AX25_Crc(out, length + 23U);
+    out[length + 23U] = (uint8_t)crc;
+    out[length + 24U] = (uint8_t)(crc >> 8);
+  }
+  /* Destination and source are terminated by the following path address;
+     mark only the last address in the address field with the extension bit. */
+  out[6] &= (uint8_t)~0x01U;
+  out[13] &= (uint8_t)~0x01U;
+  return (int)(length + 25U);
 }
 
 static int bit(AFSK_Stream *s, unsigned data, uint8_t *tone)

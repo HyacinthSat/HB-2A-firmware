@@ -50,6 +50,29 @@ int aprs_service_send_text_with_poll(AprsService *service,
   return result;
 }
 
+int aprs_service_send_transponder(AprsService *service,
+                                   const char *source, const char *destination,
+                                   const char *path, const uint8_t *info,
+                                   size_t length)
+{
+  int duration;
+  int result;
+  if (service == NULL || service->initialized == 0U || source == NULL ||
+      destination == NULL || path == NULL || info == NULL) return -1;
+  duration = SX1278_APRS_PrepareAddressedPath(source, destination, path, info, length);
+  if (duration < 0) {
+    service->last_error = duration;
+    return duration;
+  }
+  result = SX1278_APRS_Send(144925000UL, (uint32_t)duration + 300U, NULL);
+  service->last_error = result;
+  if (result == 0) {
+    service->last_frequency_hz = 144925000UL;
+    ++service->tx_count;
+  }
+  return result;
+}
+
 int aprs_service_send_telemetry(AprsService *service,
                                 const TelemetryFrame *frame)
 {

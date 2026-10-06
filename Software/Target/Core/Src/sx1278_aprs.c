@@ -6,6 +6,7 @@
    U14 supplies an AC-coupled external 32 MHz reference to XTA. */
 #include "sx1278_aprs.h"
 #include "ax25_afsk.h"
+#include "uplink_protocol.h"
 #include "app_config.h"
 #include "main.h"
 #include "spi.h"
@@ -13,21 +14,28 @@
 #include <string.h>
 
 #define REG_MODE 0x01U
-#define REG_DATA_MODUL 0x02U
+#define REG_BITRATE_MSB 0x02U
 #define REG_IRQ1 0x3EU
 #define MODE_SLEEP 0x08U
 #define MODE_STANDBY 0x09U
 #define MODE_FSTX 0x0AU
 #define MODE_TX 0x0BU
-/* RegDataModul[1:0]=10 selects continuous FSK. 0x80 is variable-length
-   packet mode and ignores the asynchronous DIO2 waveform used by APRS. */
-#define DATA_MODE_CONTINUOUS 0x02U
+#define MODE_FSRX 0x0CU
+#define MODE_RX 0x0DU
+#define RX_PA_RAMP_GMSK_BT05 0x49U
 #define MODE_CHANGE_TIMEOUT_MS 20U
+#define UPLINK_FREQUENCY_HZ 435400000UL
+#define UPLINK_BITRATE 6667U
+#define UPLINK_FDEV 20U
 
 static AFSK_Stream stream;
 static uint8_t frame[AX25_MAX_FRAME];
 static uint8_t ready;
 static volatile uint8_t playing;
+static volatile uint8_t rx_active;
+static uint8_t rx_wanted;
+static UplinkDecoder rx_decoder;
+static volatile uint32_t rx_last_bit_tick;
 static uint32_t timer_base, timer_remainder, timer_fraction;
 static uint8_t version_reads[3];
 static struct {
@@ -44,6 +52,18 @@ static void legacy_service_adapter(void *context)
 {
   (void)context;
   if (legacy_service != NULL) legacy_service();
+}
+
+/* The FSK receiver exposes recovered clock on DIO1 and data on DIO2 when
+   RegDioMapping1 is zero. Keep the interrupt short and decode in foreground. */
+void HAL_GPIO_EXTI_Callback(uint16_t pin)
+{
+  if (pin == DIO1_Pin && rx_active != 0U)
+  {
+    rx_last_bit_tick = HAL_GetTick();
+    uplink_decoder_push_bit(&rx_decoder,
+                            (uint8_t)HAL_GPIO_ReadPin(DIO2_GPIO_Port, DIO2_Pin));
+  }
 }
 /* Preserve the first failure through standby cleanup and diagnostic reads. */
 static struct {
@@ -176,13 +196,99 @@ static int stop_radio(void)
   return -1;
 }
 
+static int rx_stop_internal(uint8_t clear_request)
+{
+  if (clear_request != 0U) rx_wanted = 0U;
+  rx_active = 0U;
+  HAL_NVIC_DisableIRQ(EXTI11_IRQn);
+  __HAL_GPIO_EXTI_CLEAR_IT(DIO1_Pin);
+  data_pin(GPIO_MODE_INPUT);
+  if (ready == 0U) return 0;
+  return checked_write(REG_MODE, MODE_STANDBY) || wait_flag(0x80U) ? -1 : 0;
+}
+
+static int rx_start_internal(void)
+{
+  uint32_t frf;
+  if (ready == 0U || playing != 0U) return -1;
+  if (rx_stop_internal(0U) != 0) return -2;
+  frf = (uint32_t)((((uint64_t)UPLINK_FREQUENCY_HZ << 19U) + 16000000ULL) /
+                   32000000ULL);
+  if (checked_write(REG_MODE, MODE_STANDBY) || wait_flag(0x80U) ||
+      checked_write(0x06U, (uint8_t)(frf >> 16U)) ||
+      checked_write(0x07U, (uint8_t)(frf >> 8U)) ||
+      checked_write(0x08U, (uint8_t)frf) ||
+      checked_write(0x02U, (uint8_t)(UPLINK_BITRATE >> 8U)) ||
+      checked_write(0x03U, (uint8_t)UPLINK_BITRATE) ||
+      checked_write(0x04U, (uint8_t)(UPLINK_FDEV >> 8U)) ||
+      checked_write(0x05U, (uint8_t)UPLINK_FDEV) ||
+      checked_write(0x0AU, RX_PA_RAMP_GMSK_BT05) ||
+      checked_write(0x0DU, 0x1EU) || /* AGC + AFC + preamble-triggered restart. */
+      checked_write(0x12U, 0x05U) || /* approximately 15.6 kHz channel BW */
+      checked_write(0x13U, 0x05U) ||
+      checked_write(0x27U, 0x00U) || /* custom ASM is decoded in software */
+      checked_write(0x30U, 0x00U) ||
+      checked_write(0x31U, 0x00U) || /* continuous mode, no whitening/CRC */
+      checked_write(0x40U, 0x00U) || /* DIO1=DCLK, DIO2=Data */
+      checked_write(0x41U, 0x00U) ||
+      checked_write(REG_MODE, MODE_FSRX) || wait_flag(0x10U) ||
+      checked_write(REG_MODE, MODE_RX)) {
+    rx_active = 0U;
+    return -3;
+  }
+  uplink_decoder_init(&rx_decoder);
+  rx_last_bit_tick = HAL_GetTick();
+  data_pin(GPIO_MODE_INPUT);
+  HAL_NVIC_SetPriority(EXTI11_IRQn, 3U, 0U);
+  __HAL_GPIO_EXTI_CLEAR_IT(DIO1_Pin);
+  HAL_NVIC_ClearPendingIRQ(EXTI11_IRQn);
+  /* Mark the decoder live before unmasking DIO1. A clock edge can arrive
+     immediately after the pending flag is cleared. */
+  rx_active = 1U;
+  HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+  return 0;
+}
+
+int SX1278_APRS_RxStart(void)
+{
+  int result;
+  rx_wanted = 1U;
+  result = rx_start_internal();
+  if (result != 0) rx_wanted = 0U;
+  return result;
+}
+
+void SX1278_APRS_RxStop(void)
+{
+  (void)rx_stop_internal(1U);
+}
+
+uint8_t SX1278_APRS_RxActive(void) { return rx_active; }
+
+int SX1278_APRS_RxPoll(UplinkCommand *command)
+{
+  int result;
+  if (command == NULL || rx_active == 0U) return 0;
+  HAL_NVIC_DisableIRQ(EXTI11_IRQn);
+  if (rx_decoder.collecting != 0U &&
+      HAL_GetTick() - rx_last_bit_tick > 100U) {
+    uplink_decoder_init(&rx_decoder);
+    rx_last_bit_tick = HAL_GetTick();
+    HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+    return 0;
+  }
+  result = uplink_decoder_take(&rx_decoder, command);
+  HAL_NVIC_EnableIRQ(EXTI11_IRQn);
+  return result;
+}
+
 uint8_t SX1278_APRS_Ready(void) { return ready; }
 
 static int capture_tx(void)
 {
   tx_state.valid = 0U;
   if (reg_read(REG_MODE, &tx_state.mode) || reg_read(REG_IRQ1, &tx_state.irq1) ||
-      reg_read(0x3FU, &tx_state.irq2) || reg_read(REG_DATA_MODUL, &tx_state.datamod) ||
+      reg_read(0x3FU, &tx_state.irq2) || reg_read(REG_BITRATE_MSB, &tx_state.datamod) ||
       reg_read(0x09U, &tx_state.pa) ||
       reg_read(0x0AU, &tx_state.ramp) || reg_read(0x0BU, &tx_state.ocp) ||
       reg_read(0x31U, &tx_state.packet) || reg_read(0x4BU, &tx_state.tcxo) ||
@@ -211,11 +317,11 @@ static int begin_tx(uint32_t frequency_hz)
   if (checked_write(REG_MODE, MODE_STANDBY) || wait_flag(0x80U) ||
       checked_write(0x06U, (uint8_t)(frf >> 16)) ||
       checked_write(0x07U, (uint8_t)(frf >> 8)) ||
-      checked_write(0x08U, (uint8_t)frf)) return -3;
+      checked_write(0x08U, (uint8_t)frf) ||
+      checked_write(0x0AU, 0x09U)) return -3;
   if (checked_write(REG_MODE, MODE_FSTX) || wait_flag(0x10U)) return -6;
   if (checked_write(REG_MODE, MODE_TX) || wait_flag(0xB0U)) return -7;
-  if (capture_tx() || tx_state.datamod != DATA_MODE_CONTINUOUS ||
-      tx_still_active()) return -8;
+  if (capture_tx() || tx_still_active()) return -8;
   return 0;
 }
 
@@ -223,7 +329,7 @@ void SX1278_APRS_TxReport(char *out, size_t capacity)
 {
   if (!out || !capacity) return;
   (void)snprintf(out, capacity,
-    "SX TX snapshot valid=%u rc=%d direct=%u mode=%02X irq1=%02X irq2=%02X datamod=%02X frf=%02X%02X%02X pa=%02X ramp=%02X ocp=%02X pkt=%02X tcxo=%02X dac=%02X dev=%02X%02X samples=%lu edges=%lu\r\n",
+    "SX TX snapshot valid=%u rc=%d direct=%u mode=%02X irq1=%02X irq2=%02X bitrate_msb=%02X frf=%02X%02X%02X pa=%02X ramp=%02X ocp=%02X pkt=%02X tcxo=%02X dac=%02X dev=%02X%02X samples=%lu edges=%lu\r\n",
     tx_state.valid, tx_state.result, tx_state.direct_fallback, tx_state.mode, tx_state.irq1, tx_state.irq2,
     tx_state.datamod, tx_state.frf[0], tx_state.frf[1], tx_state.frf[2], tx_state.pa, tx_state.ramp,
     tx_state.ocp, tx_state.packet, tx_state.tcxo, tx_state.dac,
@@ -249,7 +355,7 @@ int SX1278_APRS_CarrierTest(uint32_t frequency_hz, uint32_t duration_ms, void (*
     first_failure.stage = 0U;
     tx_state.direct_fallback = 1U; /* Records the attempt, including failures. */
     if (checked_write(REG_MODE, MODE_TX) || wait_flag(0xA0U)) result = -7;
-    else if (capture_tx() || tx_state.datamod != DATA_MODE_CONTINUOUS) result = -8;
+    else if (capture_tx()) result = -8;
     else result = 1; /* TX ready was observed; RF output is still unverified. */
   }
   if (result < 0) (void)capture_tx();
@@ -393,7 +499,7 @@ int SX1278_APRS_Init(uint8_t *version)
     {0x4DU, 0x84U}, {0x0BU, 0x2BU}, {0x0AU, 0x09U},
     /* Continuous FSK with asynchronous data on DIO2.  RegDataModul[1:0]
        must be 10b; packet mode (including 0x80) does not use DIO2 input. */
-    {REG_DATA_MODUL, DATA_MODE_CONTINUOUS}, {0x03U, 0x0BU},
+    {REG_BITRATE_MSB, 0x02U}, {0x03U, 0x0BU},
     {0x04U, 0x00U}, {0x05U, 49U},
     {0x30U, 0x00U}, {0x31U, 0x00U}, /* no HW CRC/whitening; continuous */
     {0x40U, 0x00U}, {0x41U, 0x00U}, {REG_MODE, MODE_STANDBY}
@@ -425,12 +531,36 @@ int SX1278_APRS_PrepareAddressed(const char *source, const char *destination,
   return (int)AFSK_DurationMs(&stream);
 }
 
+int SX1278_APRS_PrepareAddressedPath(const char *source, const char *destination,
+                                     const char *path, const uint8_t *info,
+                                     size_t length)
+{
+  if (playing || !ready) return -1;
+  stream.count = 0U;
+  int bytes = AX25_BuildPath(source, destination, path, info, length,
+                             frame, sizeof(frame));
+  if (bytes < 0 || AFSK_Prepare(&stream, frame, (size_t)bytes)) return -2;
+  return (int)AFSK_DurationMs(&stream);
+}
+
 int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
                                 SX1278_APRS_ServiceFn service, void *context)
 {
+  uint8_t resume_rx;
   if (!ready || playing || stream.count == 0U) return -1;
   if (frequency_hz < 137000000UL || frequency_hz > 175000000UL ||
       budget_ms < AFSK_DurationMs(&stream) + 200U) return -2;
+  resume_rx = rx_wanted;
+  if (rx_active != 0U && rx_stop_internal(0U) != 0) return -3;
+  /* RX uses 4800 bps and 1.2 kHz deviation. Restore the asynchronous APRS
+     settings before every VHF packet, otherwise the first packet after an
+     uplink would be sent with the receive modem parameters. */
+  if (checked_write(0x02U, 0x02U) || checked_write(0x03U, 0x0BU) ||
+      checked_write(0x04U, 0x00U) || checked_write(0x05U, 49U) ||
+      checked_write(0x0AU, 0x09U)) {
+    if (resume_rx != 0U) (void)rx_start_internal();
+    return -3;
+  }
   memset(&tx_state, 0, sizeof(tx_state));
   first_failure.stage = 0U;
   emitted_samples = data_edges = 0U;
@@ -440,6 +570,7 @@ int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
     (void)capture_tx();
     if (stop_radio()) result = -5;
     tx_state.result = result;
+    if (resume_rx != 0U) (void)rx_start_internal();
     return result;
   }
   /* Derive TIM2 clock from the actual APB1 prescaler (TIMPRE is reset/default). */
@@ -476,6 +607,7 @@ int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
   }
   if (!result && tx_still_active()) result = -8;
   if (stop_radio()) result = -5;
+  if (resume_rx != 0U) (void)rx_start_internal();
   tx_state.result = result;
   return result;
 }

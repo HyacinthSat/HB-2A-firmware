@@ -2,6 +2,7 @@
 #define SX1278_APRS_H
 #include <stddef.h>
 #include <stdint.h>
+#include "uplink_protocol.h"
 
 int SX1278_APRS_Init(uint8_t *version);
 /* Read-only startup diagnostics, called only while the radios are idle. */
@@ -15,6 +16,9 @@ int SX1278_APRS_Prepare(const char *info, size_t length);
 /* Same as above, with an explicit AX.25 source and destination address. */
 int SX1278_APRS_PrepareAddressed(const char *source, const char *destination,
                                  const uint8_t *info, size_t length);
+int SX1278_APRS_PrepareAddressedPath(const char *source, const char *destination,
+                                     const char *path, const uint8_t *info,
+                                     size_t length);
 typedef void (*SX1278_APRS_ServiceFn)(void *context);
 int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
                                 SX1278_APRS_ServiceFn service, void *context);
@@ -22,6 +26,12 @@ int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
    Returns 0 only after the timer has emitted the complete packet and RF is off. */
 int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms, void (*service)(void));
 uint8_t SX1278_APRS_Ready(void);
+/* Start/stop the 435.400 MHz continuous-FSK DIO receive path. */
+int SX1278_APRS_RxStart(void);
+void SX1278_APRS_RxStop(void);
+uint8_t SX1278_APRS_RxActive(void);
+/* Poll a frame completed by the DIO1 clock/DIO2 data receiver. */
+int SX1278_APRS_RxPoll(UplinkCommand *command);
 /* Diagnostic only: 0=normal TX, 1=TX ready after missing PLL indication.
    Negative values indicate failure. Neither result confirms RF output. */
 int SX1278_APRS_CarrierTest(uint32_t frequency_hz, uint32_t duration_ms, void (*service)(void));

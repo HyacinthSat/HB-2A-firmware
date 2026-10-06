@@ -24,6 +24,10 @@ int aprs_service_send_text_with_poll(AprsService *service,
                                      const char *text, size_t length,
                                      AprsServicePollFn poll,
                                      void *context);
+int aprs_service_send_transponder(AprsService *service,
+                                   const char *source, const char *destination,
+                                   const char *path, const uint8_t *info,
+                                   size_t length);
 int aprs_service_send_telemetry(AprsService *service,
                                 const TelemetryFrame *frame);
 int aprs_service_send_telemetry_with_poll(AprsService *service,

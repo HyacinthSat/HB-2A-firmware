@@ -14,6 +14,7 @@
 #include "spi.h"
 #include "startup_selftest_service.h"
 #include "sx1278_aprs.h"
+#include "transponder_service.h"
 #include "telemetry_service.h"
 #include "usart.h"
 #include "wspr_radio_service.h"
@@ -36,6 +37,7 @@ static char g_telemetry_debug_line[TELEMETRY_APRS_TEXT_CAPACITY + 64U];
 static WsprFrame g_wspr_frame;
 static char g_selftest_line[512];
 static char g_radio_diagnostic[384];
+static TransponderService g_transponder;
 
 typedef struct {
   GnssService *gnss;
@@ -385,6 +387,17 @@ static uint8_t wspr_start_imminent(const GnssSolution *solution)
                    (next_minute % 10U) == APP_WSPR_TELEMETRY_MINUTE);
 }
 
+static uint8_t aprs_start_imminent(const GnssSolution *solution)
+{
+  uint8_t next_minute;
+  if (solution == NULL || solution->utc_valid == 0U ||
+      solution->fully_resolved == 0U || solution->second < 50U) return 0U;
+  next_minute = (uint8_t)(solution->minute + 1U);
+  if (next_minute >= 60U) next_minute = 0U;
+  return (uint8_t)((next_minute % 10U) == 1U ||
+                   (next_minute % 10U) == 6U);
+}
+
 static uint8_t ssdv_group_window(const GnssSolution *solution)
 {
   uint8_t minute;
@@ -525,6 +538,8 @@ void app_main(void)
   uint64_t wspr_failed_slot = UINT64_MAX;
   uint32_t wspr_retry_after = 0U;
 
+  transponder_service_init(&g_transponder);
+
   aprs_schedule_service_init(&g_aprs_schedule);
   app_flow_init(&flow);
   (void)app_flow_dispatch(&flow, APP_EVENT_BOOT_CHECK_DONE);
@@ -608,6 +623,11 @@ void app_main(void)
   } else {
     app_debug("NORMAL APRS telemetry unavailable\r\n");
   }
+  if (aprs.initialized != 0U && SX1278_APRS_RxStart() == 0) {
+    app_debug("NORMAL uplink RX ready freq=435400000 rate=4800\r\n");
+  } else if (aprs.initialized != 0U) {
+    app_debug("NORMAL uplink RX unavailable\r\n");
+  }
 
   uint32_t next_telemetry_report = HAL_GetTick() + 60000U;
   for (;;) {
@@ -649,6 +669,7 @@ void app_main(void)
         (void)snprintf(debug_line, WSPR_SERVICE_TEXT_CAPACITY + 64U,
                        "NORMAL WSPR TX start: %s\r\n", frame.text);
         app_debug(debug_line);
+        SX1278_APRS_RxStop();
         if (wspr_radio_service_send(&wspr_radio, &frame,
                                     wspr_radio_gnss_poll, &gnss) == 0) {
           wspr_last_slot = wspr_due_slot;
@@ -659,6 +680,7 @@ void app_main(void)
           wspr_retry_after = HAL_GetTick() + 1000U;
           app_debug("NORMAL WSPR TX failed\r\n");
         }
+        (void)SX1278_APRS_RxStart();
       }
       if (build_result != 0 && slot_missed == 0U) {
         wspr_failed_slot = wspr_due_slot;
@@ -732,6 +754,27 @@ void app_main(void)
     if ((int32_t)(HAL_GetTick() - next_telemetry_report) >= 0) {
       (void)telemetry_report(&gnss, 0, 1U, 0U);
       next_telemetry_report = HAL_GetTick() + 60000U;
+    }
+    {
+      UplinkCommand command;
+      if (SX1278_APRS_RxPoll(&command) != 0) {
+        int enqueue_result = transponder_service_enqueue(&g_transponder, &command);
+        if (enqueue_result == 0) {
+          app_debug("UPLINK TRANPD accepted\r\n");
+        } else if (command.block_count == 1U &&
+                   memcmp(command.data, "EXPR", 4U) == 0) {
+          app_debug("UPLINK EXPR received; experiment mode pending\r\n");
+        } else if (enqueue_result == -4) {
+          app_debug("UPLINK TRANPD rejected path\r\n");
+        } else if (enqueue_result == -2) {
+          app_debug("UPLINK TRANPD queue full\r\n");
+        }
+      }
+      if (wspr_radio.transmitting == 0U &&
+          (wspr_radio.initialized == 0U || wspr_start_imminent(solution) == 0U) &&
+          aprs_start_imminent(solution) == 0U && camera_ssdv_active() == 0U) {
+        transponder_service_poll(&g_transponder, &aprs);
+      }
     }
     HAL_Delay(10U);
   }

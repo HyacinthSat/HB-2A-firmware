@@ -14,6 +14,8 @@ GNSS 启动流程、遥测组合层、APRS 下行和 WSPR 编码已经在实板�
 - `sx1278_radio`：SX1278 初始化、收发和参数切换。
 - `camera_service`：摄像头选择、拍照和 JPG 文件交付。
 - `aprs_service`：APRS 频点选择、AX.25/1200 bps 下行和转发。
+- `uplink_protocol`：16 字节 0x55 前导、CCSDS TC BCH(63,56)、NRZI 和 CRC-16 上行帧解码。
+- `transponder_service`：TRANPD 校验、排队和固定 144.925 MHz AX.25 转发。
 - `aprs_schedule_service`：APRS UTC 时隙去重、两次重复发送和间隔计时。
 - `wspr_service`：WSPR 编码和标准/遥测帧构造。
 - `wspr_radio_service`：SI5351 检测、WSPR 162 符号定时和射频输出。

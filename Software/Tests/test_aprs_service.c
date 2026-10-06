@@ -46,6 +46,26 @@ int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
   return send_result;
 }
 
+int SX1278_APRS_PrepareAddressedPath(const char *source, const char *destination,
+                                     const char *path, const uint8_t *info,
+                                     size_t length)
+{
+  (void)source; (void)destination; (void)path;
+  assert(info != NULL || length == 0U);
+  prepared_frequency = 144925000UL;
+  return prepare_result;
+}
+
+int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms,
+                     void (*service)(void))
+{
+  (void)budget_ms;
+  ++send_call_count;
+  prepared_frequency = frequency_hz;
+  if (service != NULL) service();
+  return send_result;
+}
+
 static void reset_mocks(void)
 {
   init_result = 0;
