@@ -54,7 +54,7 @@ int uplink_bch_decode(const uint8_t codeword[UPLINK_BCH_CODE_BYTES],
     for (unsigned byte = 0U; byte < 8U && found == 0U; ++byte) {
       unsigned limit = byte == 7U ? 7U : 8U;
       for (unsigned bit = 0U; bit < limit; ++bit) {
-        uint8_t mask = (uint8_t)(1U << (7U - bit));
+        uint8_t mask = (uint8_t)(1U << (byte == 7U ? (6U - bit) : (7U - bit)));
         corrected[byte] ^= mask;
         if (codeword_syndrome(corrected) == 0U) {
           found = 1U;
@@ -108,12 +108,15 @@ int uplink_frame_encode(const uint8_t *data, size_t data_length,
   size_t bytes;
   size_t pos = 0U;
   uint8_t level = 1U;
+  uint8_t padded[UPLINK_MAX_DATA_BYTES];
   if (data == NULL || out == NULL || data_length == 0U ||
       data_length > UPLINK_MAX_DATA_BYTES) return -1;
   blocks = (data_length + UPLINK_BCH_DATA_BYTES - 1U) /
            UPLINK_BCH_DATA_BYTES;
   bytes = 16U + 4U + blocks * 8U + 2U;
   if (blocks > UPLINK_MAX_BLOCKS || capacity < bytes) return -2;
+  memset(padded, 0x20, sizeof(padded));
+  memcpy(padded, data, data_length);
   memset(out, 0, bytes);
   for (size_t i = 0U; i < 16U; ++i) out[i] = 0x55U;
   out[16] = 0x1AU; out[17] = 0xCFU; out[18] = 0xFCU; out[19] = 0x1DU;
@@ -123,7 +126,7 @@ int uplink_frame_encode(const uint8_t *data, size_t data_length,
     uint8_t codeword[UPLINK_BCH_CODE_BYTES];
     for (size_t i = 0U; i < sizeof(plain); ++i) {
       size_t index = block * sizeof(plain) + i;
-      plain[i] = index < data_length ? data[index] : 0x20U;
+      plain[i] = padded[index];
     }
     (void)uplink_bch_encode(plain, codeword);
     for (size_t i = 0U; i < sizeof(codeword); ++i) {
@@ -136,7 +139,7 @@ int uplink_frame_encode(const uint8_t *data, size_t data_length,
     }
   }
   {
-    uint16_t crc = uplink_crc16(data, blocks * UPLINK_BCH_DATA_BYTES);
+    uint16_t crc = uplink_crc16(padded, blocks * UPLINK_BCH_DATA_BYTES);
     for (unsigned bit = 0U; bit < 16U; ++bit) {
       uint8_t decoded = (uint8_t)((((bit < 8U) ? crc : (uint16_t)(crc >> 8U)) >>
                                    (7U - (bit & 7U))) & 1U);
@@ -193,6 +196,13 @@ static int decode_raw(const UplinkDecoder *decoder, uint8_t initial,
 void uplink_decoder_init(UplinkDecoder *decoder)
 {
   if (decoder != NULL) memset(decoder, 0, sizeof(*decoder));
+}
+
+void uplink_decoder_begin_payload(UplinkDecoder *decoder)
+{
+  if (decoder == NULL) return;
+  uplink_decoder_init(decoder);
+  decoder->collecting = 1U;
 }
 
 void uplink_decoder_push_bit(UplinkDecoder *decoder, uint8_t bit)

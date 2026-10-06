@@ -7,12 +7,25 @@
 static UART_HandleTypeDef uart;
 static uint8_t *rx_byte;
 static uint32_t tick;
+static unsigned abort_count;
+static int abort_failure;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *handle);
+
+HAL_StatusTypeDef HAL_UART_AbortReceive(UART_HandleTypeDef *handle)
+{
+  ++abort_count;
+  if (abort_failure) return HAL_ERROR;
+  handle->RxState = HAL_UART_STATE_READY;
+  rx_byte = NULL;
+  return HAL_OK;
+}
 
 HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *handle, uint8_t *byte, uint16_t length)
 {
   assert(handle == &uart && length == 1U);
+  if (handle->RxState != HAL_UART_STATE_READY) return HAL_BUSY;
+  handle->RxState = HAL_UART_STATE_BUSY_RX;
   rx_byte = byte;
   return HAL_OK;
 }
@@ -34,6 +47,7 @@ static void inject(uint8_t byte)
 {
   assert(rx_byte != 0);
   *rx_byte = byte;
+  uart.RxState = HAL_UART_STATE_READY;
   HAL_UART_RxCpltCallback(&uart);
 }
 
@@ -80,9 +94,24 @@ int main(void)
 
   assert(gnss_service_init(&service, &uart) == 0);
   assert(service.state == GNSS_SERVICE_IDLE);
+  inject(0xB5U);
+  assert(gnss_service_init(&service, &uart) == 0);
+  assert(gnss_service_init(&service, &uart) == 0);
+  assert(abort_count == 3U && uart.RxState == HAL_UART_STATE_BUSY_RX);
+  abort_failure = 1;
+  assert(gnss_service_init(&service, &uart) != 0);
+  abort_failure = 0;
+  assert(gnss_service_init(&service, &uart) == 0);
   assert(gnss_service_configure(&service) != 0);
   /* Configuration needs a real M10 response; parser behavior is tested below. */
   service.state = GNSS_SERVICE_CONFIGURED;
+
+  /* A corrupt oversized length must be rejected immediately so the next
+     valid NAV-PVT frame is still found. */
+  {
+    const uint8_t bad_header[] = {0xB5U, 0x62U, 0x01U, 0x07U, 0xFFU, 0xFFU};
+    for (unsigned i = 0U; i < sizeof(bad_header); ++i) inject(bad_header[i]);
+  }
 
   payload[20] = 3U;
   payload[21] = 1U;
@@ -106,6 +135,37 @@ int main(void)
   assert(solution->height_msl_mm == 850000);
   assert(solution->ground_speed_mm_s == 18520U);
   assert(solution->year == 2026U && solution->hour == 12U);
+
+  tick += 600000U;
+  gnss_service_poll(&service);
+  assert(solution->position_valid == 0U && solution->utc_holdover == 1U);
+  assert(solution->utc_valid && solution->minute == 44U && solution->second == 56U);
+  payload[11] = 0U;
+  send_nav_pvt(payload);
+  gnss_service_poll(&service);
+  assert(solution->minute == 44U && solution->utc_holdover);
+  payload[11] = 7U;
+  put_u16(payload + 4U, 2028U);
+  payload[6] = 2U; payload[7] = 28U;
+  payload[8] = 23U; payload[9] = 59U; payload[10] = 59U;
+  tick = UINT32_MAX - 499U;
+  send_nav_pvt(payload); gnss_service_poll(&service);
+  tick += 1500U; gnss_service_poll(&service);
+  assert(solution->month == 2U && solution->day == 29U && solution->second == 0U);
+  tick += 500U; gnss_service_poll(&service);
+  assert(solution->second == 1U);
+  tick += 86400000U; gnss_service_poll(&service);
+  assert(solution->month == 3U && solution->day == 1U && solution->second == 1U);
+  payload[6]=12U; payload[7]=31U;
+  send_nav_pvt(payload); gnss_service_poll(&service);
+  tick += 1000U; gnss_service_poll(&service);
+  assert(solution->year == 2029U && solution->month == 1U && solution->day == 1U);
+  payload[6]=13U;
+  send_nav_pvt(payload); gnss_service_poll(&service);
+  assert(solution->month == 1U && solution->utc_holdover);
+  payload[6]=10U; payload[7]=6U; payload[8]=12U; payload[9]=34U; payload[10]=56U;
+  send_nav_pvt(payload); gnss_service_poll(&service);
+  assert(!solution->utc_holdover && solution->position_valid && solution->minute == 34U);
 
   puts("gnss_service tests passed");
   return 0;

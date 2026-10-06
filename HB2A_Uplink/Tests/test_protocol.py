@@ -54,8 +54,8 @@ class ProtocolTests(unittest.TestCase):
         return n, power.value, bytes(frame[:max(0, n)])
 
     def test_all_commands_round_trip_through_original_decoder(self):
-        cases = [("TRANPD", ["BG7ZDQ", "APZDQ7", "HB-2A", "HELLO"]),
-                 ("EXPR", []), ("CAPTR", ["A", "255", "250", "7"]), ("REQF", ["1"]),
+        cases = [("TRANPD", ["BG7ZDQ", "APZDQ7", "APZDQ7", "HELLO"]),
+                 ("EXPR", []), ("CAPTR", ["A", "640", "480", "7"]), ("REQF", ["1"]),
                  ("HSPAR", ["0", "0", "1"]), ("CHPRAM", ["0", "0", "1"]),
                  ("CFRM", []), ("CANCEL", [])]
         for kind, fields in cases:
@@ -94,16 +94,22 @@ class ProtocolTests(unittest.TestCase):
                      b"SEND 10 4853504152202020"):
             with self.subTest(line=line):
                 self.assertLess(self.encode(line)[0], 0)
-        wrong_path = command_data("TRANPD", ["BG7ZDQ", "APZDQ7", "HB-2A", "HELLO"]).replace(b"HB-2A", b"HB-2B")
+        wrong_path = command_data("TRANPD", ["BG7ZDQ", "APZDQ7", "APZDQ7", "HELLO"]).replace(b" APZDQ7 HELLO", b" APZDQ6 HELLO")
         self.assertEqual(self.encode(b"SEND 10 " + wrong_path.hex().encode())[0], -4)
 
     def test_host_field_validation(self):
-        for fields in (["BG7ZDQ", "APZDQ7", "HB-2A", "TOOLONG!"],
-                       ["BG7ZDQ", "APZDQ7", "HB-2A", "\u6d4b\u8bd5"],
-                       ["BAD-16", "APZDQ7", "HB-2A", "HI"],
+        self.assertEqual(len(command_data("CAPTR", ["A", "400", "304", "5"])), 35)
+        for fields in (["BG7ZDQ", "APZDQ7", "APZDQ7", "TOOLONG!"],
+                       ["BG7ZDQ", "APZDQ7", "APZDQ7", "\u6d4b\u8bd5"],
+                       ["TOOLONG", "APZDQ7", "APZDQ7", "HI"],
+                       ["BAD-16", "APZDQ7", "APZDQ7", "HI"],
                        ["BG7ZDQ", "APZDQ7", "WRONG", "HI"]):
             with self.assertRaises(ValueError):
                 usb_command("TRANPD", fields)
+        for fields in (["A", "401", "304", "5"], ["A", "400", "303", "5"],
+                       ["A", "0", "304", "5"]):
+            with self.assertRaises(ValueError):
+                usb_command("CAPTR", fields)
 
 
 if __name__ == "__main__":

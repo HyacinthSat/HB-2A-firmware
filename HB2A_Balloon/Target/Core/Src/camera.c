@@ -8,6 +8,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#if CAMERA_JPEG_BUFFER_SIZE > 0xFFFFU || (CAMERA_JPEG_BUFFER_SIZE % 4U) != 0U
+#error "Camera normal DMA buffer must be word-aligned and fit a 16-bit byte count"
+#endif
+
 static OV5640_Object_t camera_sensor;
 static uint8_t camera_frame[CAMERA_JPEG_BUFFER_SIZE] __attribute__((aligned(32)));
 static volatile uint32_t camera_frame_done;
@@ -282,6 +286,7 @@ static int camera_update_checked(uint16_t reg, uint8_t mask, uint8_t value)
 
 void camera_power_off(void)
 {
+  board_set_stage(BOARD_STAGE_CAMERA_OFF);
   camera_xclk_stop();
   HAL_GPIO_WritePin(OVRESET_EN_GPIO_Port, OVRESET_EN_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(OV_RESET_GPIO_Port, OV_RESET_Pin, GPIO_PIN_RESET);
@@ -290,6 +295,7 @@ void camera_power_off(void)
   HAL_GPIO_WritePin(CAM_B_EN_GPIO_Port, CAM_B_EN_Pin, GPIO_PIN_RESET);
   memset(&camera_sensor, 0, sizeof(camera_sensor));
   camera_log("CAM rails off\r\n");
+  board_set_stage(BOARD_STAGE_IDLE);
 }
 
 static void camera_power_on(CameraPort port)
@@ -305,10 +311,12 @@ static void camera_power_on(CameraPort port)
 
   /* Match the original oscillator sequence: provide a stable XCLK while
      RESET is low, then power the sensor and release reset. */
+  board_set_stage(BOARD_STAGE_CAMERA_CLOCK);
   camera_xclk_start();
   camera_log("CAM clock PC7 8MHz on\r\n");
   HAL_Delay(5U);
   camera_log("CAM rails enabling\r\n");
+  board_set_stage(BOARD_STAGE_CAMERA_RAILS);
   if (port == CAMERA_B)
     HAL_GPIO_WritePin(CAM_B_EN_GPIO_Port, CAM_B_EN_Pin, GPIO_PIN_SET);
   else
@@ -334,6 +342,7 @@ int camera_init_resolution(CameraPort port, uint32_t resolution)
   if (port != CAMERA_A && port != CAMERA_B) return -12;
   camera_log("CAM power\r\n");
   camera_power_on(port);
+  board_set_stage(BOARD_STAGE_CAMERA_CONFIG);
   /* A failed transaction on the other sensor must not carry over to this one. */
   if (HAL_I2C_DeInit(&hi2c2) != HAL_OK) return -13;
   camera_i2c_line_init();
@@ -370,6 +379,7 @@ int camera_init_resolution(CameraPort port, uint32_t resolution)
   if (id != 0x5640U) return -3;
   camera_log("CAM configure\r\n");
   if (OV5640_Init(&camera_sensor, resolution, OV5640_JPEG) != OV5640_OK) return -4;
+  camera_log("CAM preset configured; PLL start\r\n");
   /* XCLK is 8 MHz from PC7, while the ST helper assumes a 24 MHz
      input. Keep the same internal/PCLK rates by multiplying 3x:
      0x3036=0xC0 with the 0x3037=0x16 divider gives the same
@@ -380,6 +390,7 @@ int camera_init_resolution(CameraPort port, uint32_t resolution)
     if (camera_write_reg(0x78U, 0x3036U, &pll_mult, 1U) != 0 ||
         camera_write_reg(0x78U, 0x3037U, &pll_div, 1U) != 0) return -5;
   }
+  camera_log("CAM PLL configured; ISP start\r\n");
   if (OV5640_SetLightMode(&camera_sensor, APP_CAMERA_WB_MODE) != OV5640_OK) return -16;
   /* AWB algorithm enable (5001.0) and gain source (3406.0) are separate.
      Reassert both, plus auto exposure/gain, and check the actual sensor. */
@@ -413,31 +424,61 @@ int camera_init_resolution(CameraPort port, uint32_t resolution)
   return 0;
 }
 
+int camera_init_dimensions(CameraPort port, uint16_t width, uint16_t height)
+{
+  int32_t resolution = OV5640_ResolutionForSize(width, height);
+  if (resolution < 0 || (width & 15U) != 0U || (height & 15U) != 0U) {
+    camera_log("CAM unsupported size: use an SSDV-aligned preset\r\n");
+    return -1;
+  }
+  /* Use exactly the preset path used by selftest, with no second timing rewrite. */
+  return camera_init_resolution(port, (uint32_t)resolution);
+}
+
 int camera_init(CameraPort port)
 {
   return camera_init_resolution(port, OV5640_R640x480);
 }
 
-int camera_capture(uint8_t **jpeg, uint32_t *length)
+static int camera_stop_capture(void)
+{
+  HAL_StatusTypeDef stopped;
+  __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME | DCMI_IT_OVR | DCMI_IT_ERR);
+  stopped = HAL_DCMI_Stop(&hdcmi);
+  /* This HAL's DCMI_Stop ignores the return value from DMA_Abort. Do not
+     reuse or expose the buffer while DMA can still write to it. */
+  if (hdma_dcmi.State != HAL_DMA_STATE_READY &&
+      HAL_DMA_Abort(&hdma_dcmi) != HAL_OK) return -19;
+  __DSB();
+  return stopped == HAL_OK && hdma_dcmi.State == HAL_DMA_STATE_READY ? 0 : -19;
+}
+
+static int camera_capture_impl(uint8_t **jpeg, uint32_t *length,
+                               CameraCapturePollFn poll, void *context)
 {
   uint32_t remaining_bytes;
   uint32_t transferred;
   uint32_t start;
-  HAL_StatusTypeDef stopped;
+  int stopped;
+  if (jpeg == NULL || length == NULL) return -22;
   *jpeg = NULL;
   *length = 0U;
+  if (hdcmi.Instance == NULL || hdma_dcmi.Instance == NULL ||
+      hdcmi.DMA_Handle != &hdma_dcmi) return -21;
+  /* A failed/aborted capture can leave either HAL handle busy.  Clear that
+     state before arming the next camera, especially after switching A/B. */
+  if (hdma_dcmi.State != HAL_DMA_STATE_READY || hdcmi.State != HAL_DCMI_STATE_READY) {
+    if (camera_stop_capture() != 0) {
+      camera_log("CAM previous capture could not stop; buffer not reused\r\n");
+      return -19;
+    }
+  }
+  __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME | DCMI_IT_OVR | DCMI_IT_ERR);
+  __HAL_DCMI_CLEAR_FLAG(&hdcmi, DCMI_FLAG_FRAMERI | DCMI_FLAG_OVRRI | DCMI_FLAG_ERRRI);
   memset(camera_frame, 0, sizeof(camera_frame));
   camera_frame_done = 0U;
   camera_error = 0U;
-  /* A failed/aborted capture can leave either HAL handle busy.  Clear that
-     state before arming the next camera, especially after switching A/B. */
-  if (hdma_dcmi.State != HAL_DMA_STATE_READY) {
-    (void)HAL_DMA_Abort(&hdma_dcmi);
-  }
-  if (hdcmi.State != HAL_DCMI_STATE_READY) {
-    (void)HAL_DCMI_Stop(&hdcmi);
-  }
-  __HAL_DCMI_CLEAR_FLAG(&hdcmi, DCMI_FLAG_FRAMERI | DCMI_FLAG_OVRRI | DCMI_FLAG_ERRRI);
+  board_set_stage(BOARD_STAGE_CAPTURE);
   __HAL_DCMI_ENABLE_IT(&hdcmi, DCMI_IT_FRAME | DCMI_IT_OVR | DCMI_IT_ERR);
   if (HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_SNAPSHOT, (uint32_t)camera_frame,
                          sizeof(camera_frame) / 4U) != HAL_OK) {
@@ -447,22 +488,42 @@ int camera_capture(uint8_t **jpeg, uint32_t *length)
                    (unsigned long)hdcmi.ErrorCode,
                    (unsigned long)hdma_dcmi.ErrorCode);
     camera_log(line);
-    (void)HAL_DCMI_Stop(&hdcmi);
-    __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME | DCMI_IT_OVR | DCMI_IT_ERR);
+    if (camera_stop_capture() != 0) return -19;
     return -1;
   }
   start = HAL_GetTick();
   while (!camera_frame_done && !camera_error) {
+    if (poll != NULL) poll(context);
+    HAL_Delay(1U);
     if ((HAL_GetTick() - start) > 5000U) break;
   }
   HAL_Delay(2U);
   /* GPDMA CBR1/GET_COUNTER is expressed in bytes for this HAL. */
   remaining_bytes = __HAL_DMA_GET_COUNTER(&hdma_dcmi);
+  stopped = camera_stop_capture();
+  if (stopped != 0) {
+    camera_log("CAM DMA stop failed; JPEG not released\r\n");
+    return stopped;
+  }
+  if (remaining_bytes > sizeof(camera_frame)) {
+    camera_log("CAM invalid DMA remaining count\r\n");
+    return -18;
+  }
   transferred = sizeof(camera_frame) - remaining_bytes;
-  stopped = HAL_DCMI_Stop(&hdcmi);
-  __HAL_DCMI_DISABLE_IT(&hdcmi, DCMI_IT_FRAME | DCMI_IT_OVR | DCMI_IT_ERR);
-  __DSB();
-  if ((HAL_GetTick() - start) > 5000U || !camera_frame_done || camera_error != 0U || stopped != HAL_OK || remaining_bytes == sizeof(camera_frame)) return -2;
+  if ((HAL_GetTick() - start) > 5000U || !camera_frame_done ||
+      camera_error != 0U || remaining_bytes == sizeof(camera_frame)) {
+    char line[128];
+    (void)snprintf(line, sizeof(line),
+                   "CAM capture failed elapsed=%lu done=%lu error=0x%08lX remaining=%lu\r\n",
+                   (unsigned long)(HAL_GetTick() - start), (unsigned long)camera_frame_done,
+                   (unsigned long)camera_error, (unsigned long)remaining_bytes);
+    camera_log(line);
+    if (remaining_bytes == 0U) {
+      camera_log("CAM JPEG buffer full: capacity=65532 bytes\r\n");
+      return -17;
+    }
+    return -2;
+  }
   for (uint32_t begin = 0U; begin + 1U < transferred && begin < 32U; ++begin) {
     if (camera_frame[begin] != 0xFFU || camera_frame[begin + 1U] != 0xD8U) continue;
     for (uint32_t end = begin + 2U; end + 1U < transferred; ++end) {
@@ -474,7 +535,22 @@ int camera_capture(uint8_t **jpeg, uint32_t *length)
     }
     break;
   }
+  if (remaining_bytes == 0U) {
+    camera_log("CAM JPEG buffer full: capacity=65532 bytes\r\n");
+    return -17;
+  }
   return -3;
+}
+
+int camera_capture(uint8_t **jpeg, uint32_t *length)
+{
+  return camera_capture_impl(jpeg, length, NULL, NULL);
+}
+
+int camera_capture_with_poll(uint8_t **jpeg, uint32_t *length,
+                             CameraCapturePollFn poll, void *context)
+{
+  return camera_capture_impl(jpeg, length, poll, context);
 }
 
 int camera_send_jpeg(const uint8_t *jpeg, uint32_t length)

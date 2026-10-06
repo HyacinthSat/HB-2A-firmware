@@ -12,6 +12,7 @@
 
 typedef struct {
   uint8_t position_valid;
+  uint8_t position_known;
   uint8_t utc_valid;
   uint8_t fully_resolved;
   int32_t latitude_e7;

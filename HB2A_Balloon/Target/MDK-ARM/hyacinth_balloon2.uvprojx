@@ -550,9 +550,19 @@
               <FilePath>../Core/Src/gmsk_downlink.c</FilePath>
             </File>
             <File>
+              <FileName>high_speed_ssdv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/high_speed_ssdv.c</FilePath>
+            </File>
+            <File>
               <FileName>flash_selftest.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/flash_selftest.c</FilePath>
+            </File>
+            <File>
+              <FileName>image_storage.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/image_storage.c</FilePath>
             </File>
             <File>
               <FileName>ssdv.c</FileName>

@@ -31,11 +31,24 @@ int main(void)
 {
   HighSpeedService service;
   HighSpeedParameters parameters;
-  UplinkCommand captr = command(5U, "CAPTR", "A", "256", "192", "5");
+  UplinkCommand captr = command(5U, "CAPTR", "A", "640", "480", "5");
   UplinkCommand hspar = command(4U, "HSPAR", "5", "3", "8", NULL);
   UplinkCommand cfrm = command(1U, "CFRM", NULL, NULL, NULL, NULL);
-  UplinkCommand bad_captr = command(5U, "CAPTR", "C", "256", "192", "5");
+  UplinkCommand bad_captr = command(5U, "CAPTR", "C", "640", "480", "5");
   char text[32];
+
+  {
+    const char *sizes[][2] = {{"352", "288"}, {"752", "496"},
+                             {"1024", "768"}, {"2592", "1936"}, {"480", "640"}};
+    for (unsigned i = 0U; i < sizeof(sizes) / sizeof(sizes[0]); ++i) {
+      UplinkCommand custom = command(5U, "CAPTR", "A", sizes[i][0], sizes[i][1], "5");
+      high_speed_service_init(&service);
+      assert(high_speed_service_start(&service, &custom, 0U) == 0);
+    }
+    UplinkCommand unaligned = command(5U, "CAPTR", "A", "640", "481", "5");
+    high_speed_service_init(&service);
+    assert(high_speed_service_start(&service, &unaligned, 0U) == -2);
+  }
 
   high_speed_service_init(&service);
   assert(high_speed_service_start(&service, &captr, 100U) == 0);
@@ -52,6 +65,10 @@ int main(void)
   assert(high_speed_service_event_text(&service, HS_EVENT_SEND_CONNECTION,
                                        text, sizeof(text)) > 0);
   assert(strcmp(text, "HSCON,5,3,8") == 0);
+  /* Lost HSCON: repeating HSPAR replays the probe without starting capture. */
+  assert(high_speed_service_command(&service, &hspar, 200U) == 0);
+  assert(high_speed_service_state(&service) == HS_STATE_WAIT_CONFIRM);
+  assert(high_speed_service_take_event(&service) == HS_EVENT_SEND_CONNECTION);
   assert(high_speed_service_poll(&service, 5199U) == 0);
   assert(high_speed_service_poll(&service, 5200U) == 1);
   assert(high_speed_service_take_event(&service) == HS_EVENT_SEND_CONNECTION);

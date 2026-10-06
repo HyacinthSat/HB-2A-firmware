@@ -23,8 +23,8 @@ def command_data(command, fields):
         for value in fields[:2]:
             if not CALL.fullmatch(value):
                 raise ValueError("Invalid source/destination callsign (SSID 0..15)")
-        if fields[2] != "HB-2A":
-            raise ValueError("Relay path must be HB-2A")
+        if fields[2] != "APZDQ7":
+            raise ValueError("Relay path must be APZDQ7")
         if not fields[3].strip():
             raise ValueError("Relay message is empty")
     elif command in ("HSPAR", "CHPRAM"):
@@ -33,8 +33,11 @@ def command_data(command, fields):
     elif command == "CAPTR":
         if fields[0] not in ("A", "B") or any(not value.isdigit() for value in fields[1:]):
             raise ValueError("CAPTR fields: camera A/B, width, height, quality")
-        if not 1 <= int(fields[1]) <= 255 or not 1 <= int(fields[2]) <= 255 or not 0 <= int(fields[3]) <= 7:
-            raise ValueError("CAPTR width/height 1..255 and quality 0..7")
+        width, height, quality = (int(fields[1]), int(fields[2]), int(fields[3]))
+        if not 0 < width <= 65535 or not 0 < height <= 65535:
+            raise ValueError("CAPTR width/height must be positive 16-bit values")
+        if width % 16 or height % 16 or not 0 <= quality <= 7:
+            raise ValueError("CAPTR width/height must be multiples of 16 and quality 0..7")
     elif command == "REQF":
         if not fields[0].isdigit() or not 0 <= int(fields[0]) <= 255:
             raise ValueError("REQF file index must be 0..255")

@@ -10,6 +10,41 @@ static int hex_digit(char c)
   return -1;
 }
 
+/* Validate one space-padded seven-byte AX.25 callsign field.  The base
+   callsign is limited to six characters; an optional numeric SSID is kept
+   within the seven-byte uplink field and is limited to 0..15. */
+static int valid_callsign_field(const uint8_t *field)
+{
+  size_t i = 0U;
+  unsigned base_length = 0U;
+  unsigned ssid = 0U;
+  unsigned ssid_digits = 0U;
+  if (field == NULL) return 0;
+  while (i < 7U && field[i] != (uint8_t)' ' && field[i] != (uint8_t)'-') {
+    uint8_t c = field[i];
+    if (!((c >= (uint8_t)'A' && c <= (uint8_t)'Z') ||
+          (c >= (uint8_t)'0' && c <= (uint8_t)'9')) || ++base_length > 6U)
+      return 0;
+    ++i;
+  }
+  if (base_length == 0U) return 0;
+  if (i < 7U && field[i] == (uint8_t)'-') {
+    ++i;
+    while (i < 7U && field[i] != (uint8_t)' ') {
+      if (field[i] < (uint8_t)'0' || field[i] > (uint8_t)'9' ||
+          ++ssid_digits > 2U)
+        return 0;
+      ssid = ssid * 10U + (unsigned)(field[i] - (uint8_t)'0');
+      ++i;
+    }
+    if (ssid_digits == 0U || ssid > 15U) return 0;
+  }
+  while (i < 7U) {
+    if (field[i++] != (uint8_t)' ') return 0;
+  }
+  return 1;
+}
+
 int GroundCommand_Encode(const char *line, uint8_t *power,
                          uint8_t *frame, size_t capacity)
 {
@@ -43,7 +78,9 @@ int GroundCommand_Encode(const char *line, uint8_t *power,
   else return -3;
   if (n != expected) return -3;
   if (memcmp(data, "TRANPD ", 7U) == 0 &&
-      memcmp(data + 21U, "HB-2A  ", 7U) != 0) return -4;
+      (!valid_callsign_field(data + 7U) ||
+       !valid_callsign_field(data + 14U) ||
+       memcmp(data + 21U, "APZDQ7 ", 7U) != 0)) return -4;
   *power = (uint8_t)p;
   return uplink_frame_encode(data, n, frame, capacity);
 }

@@ -6,7 +6,7 @@ typedef struct { uint32_t BSRR, ODR, MODER, OTYPER; } GPIO_TypeDef;
 typedef struct { uint32_t Pin, Mode, Pull, Speed; } GPIO_InitTypeDef;
 typedef struct { uint32_t CR1, DIER, SR, PSC, ARR, EGR, CNT; } TIM_TypeDef;
 typedef struct { uint32_t CFGR2; } RCC_TypeDef;
-typedef struct { uint32_t EXTICR[4], IMR1, RTSR1, RPR1; } EXTI_TypeDef;
+typedef struct { uint32_t EXTICR[4], IMR1, RTSR1, FTSR1, RPR1, FPR1; } EXTI_TypeDef;
 extern EXTI_TypeDef mock_exti;
 #define EXTI (&mock_exti)
 uint32_t NVIC_GetEnableIRQ(int);
@@ -36,6 +36,7 @@ extern RCC_TypeDef mock_rcc;
 #define GPIO_MODE_OUTPUT_PP 1U
 #define GPIO_MODE_IT_RISING 2U
 #define GPIO_MODE_IT_FALLING 3U
+#define GPIO_MODE_IT_RISING_FALLING 4U
 #define GPIO_NOPULL 0U
 #define GPIO_PULLDOWN 2U
 #define GPIO_SPEED_FREQ_LOW 0U

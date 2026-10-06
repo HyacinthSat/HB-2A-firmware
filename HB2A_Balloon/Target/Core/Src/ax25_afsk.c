@@ -44,7 +44,7 @@ static int path_address(const char *path, uint8_t *out)
   if (n == 0U || n > 6U) return -1;
   memset(out, (int)(' ' << 1), 6U);
   for (size_t i = 0U; i < n; ++i) out[i] = (uint8_t)((unsigned char)path[i] << 1);
-  out[6] = 0xE1U; /* SSID 0, reserved bits set, H bit set. */
+  out[6] = 0xE1U; /* SSID 0, reserved bits set, H bit set -> decoder '*'. */
   return 0;
 }
 

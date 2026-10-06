@@ -714,6 +714,89 @@ int32_t OV5640_GetPixelFormat(OV5640_Object_t *pObj, uint32_t *PixelFormat)
   * @param  Resolution  Camera resolution
   * @retval Component status
   */
+static int32_t OV5640_WriteChecked(OV5640_Object_t *pObj, uint16_t reg,
+                                  uint8_t value)
+{
+  uint8_t actual;
+  if (ov5640_write_reg(&pObj->Ctx, reg, &value, 1) != OV5640_OK ||
+      ov5640_read_reg(&pObj->Ctx, reg, &actual, 1) != OV5640_OK ||
+      actual != value) return OV5640_ERROR;
+  return OV5640_OK;
+}
+
+int32_t OV5640_SetOutputSize(OV5640_Object_t *pObj, uint16_t Width, uint16_t Height)
+{
+  /* Full-array timing follows the OV5640 QSXGA register configuration in
+     ArduCAM/Arduino, ov5640_regs.h. Keep the board's existing PLL/PCLK.
+     Small images retain the ST initialization's subsampled readout. */
+  static const uint16_t timing[][3] = {
+    /* Register, subsampled value, full-array value. */
+    {0x3803, 0x04, 0x00}, {0x3807, 0x9B, 0x9F},
+    {0x380C, 0x07, 0x0B}, {0x380D, 0x90, 0x1C},
+    {0x380E, 0x04, 0x07}, {0x380F, 0x40, 0xB0},
+    {0x3813, 0x06, 0x04},
+    {0x3814, 0x31, 0x11}, {0x3815, 0x31, 0x11},
+    {0x3618, 0x00, 0x04}, {0x3612, 0x29, 0x4B},
+    {0x3709, 0x52, 0x12}, {0x370C, 0x03, 0x00},
+    {0x3A02, 0x03, 0x07}, {0x3A03, 0xD8, 0xB0},
+    /* Mains banding steps scale by old HTS / new HTS at unchanged PLL. */
+    {0x3A08, 0x01, 0x00}, {0x3A09, 0x27, 0xC9},
+    {0x3A0A, 0x00, 0x00}, {0x3A0B, 0xF6, 0xA7},
+    {0x3A0D, 0x04, 0x0B}, {0x3A0E, 0x03, 0x09},
+    {0x3A14, 0x03, 0x07}, {0x3A15, 0xD8, 0xB0},
+    {0x4004, 0x02, 0x06}
+  };
+  uint8_t control, vertical, horizontal, isp;
+  unsigned full;
+  uint8_t size[4];
+
+  if (pObj == NULL || pObj->IsInitialized == 0U || Width == 0U ||
+      Height == 0U || Width > OV5640_MAX_WIDTH || Height > OV5640_MAX_HEIGHT ||
+      (Width & 1U) != 0U || (Height & 1U) != 0U) return OV5640_ERROR;
+  full = Width > 1280U || Height > 960U;
+  if (ov5640_read_reg(&pObj->Ctx, OV5640_SYSTEM_CTROL0, &control, 1) != OV5640_OK ||
+      ov5640_read_reg(&pObj->Ctx, OV5640_TIMING_TC_REG20, &vertical, 1) != OV5640_OK ||
+      ov5640_read_reg(&pObj->Ctx, OV5640_TIMING_TC_REG21, &horizontal, 1) != OV5640_OK ||
+      ov5640_read_reg(&pObj->Ctx, OV5640_ISP_CONTROL01, &isp, 1) != OV5640_OK)
+    return OV5640_ERROR;
+  /* A partial configuration stays in standby; the caller powers it off. */
+  if (OV5640_WriteChecked(pObj, OV5640_SYSTEM_CTROL0, control | 0x40U) != OV5640_OK)
+    return OV5640_ERROR;
+  for (unsigned i = 0U; i < sizeof(timing) / sizeof(timing[0]); ++i) {
+    if (OV5640_WriteChecked(pObj, timing[i][0], (uint8_t)timing[i][1U + full]) != OV5640_OK)
+      return OV5640_ERROR;
+  }
+  /* Preserve mirror/flip and JPEG enable while changing readout mode. */
+  vertical = (uint8_t)((vertical & ~0x41U) | (full ? 0x40U : 0U));
+  horizontal = (uint8_t)(horizontal & ~0x01U);
+  if (OV5640_WriteChecked(pObj, OV5640_TIMING_TC_REG20, vertical) != OV5640_OK ||
+      OV5640_WriteChecked(pObj, OV5640_TIMING_TC_REG21, horizontal) != OV5640_OK ||
+      OV5640_WriteChecked(pObj, OV5640_ISP_CONTROL01, isp | 0x20U) != OV5640_OK)
+    return OV5640_ERROR;
+  size[0] = (uint8_t)(Width >> 8U);
+  size[1] = (uint8_t)Width;
+  size[2] = (uint8_t)(Height >> 8U);
+  size[3] = (uint8_t)Height;
+  for (unsigned i = 0U; i < sizeof(size); ++i) {
+    if (OV5640_WriteChecked(pObj, (uint16_t)(OV5640_TIMING_DVPHO_HIGH + i), size[i]) != OV5640_OK)
+      return OV5640_ERROR;
+  }
+  return OV5640_WriteChecked(pObj, OV5640_SYSTEM_CTROL0, control);
+}
+
+int32_t OV5640_ResolutionForSize(uint16_t Width, uint16_t Height)
+{
+  static const uint16_t presets[][3] = {
+    {160U, 120U, OV5640_R160x120}, {320U, 240U, OV5640_R320x240},
+    {480U, 272U, OV5640_R480x272}, {640U, 480U, OV5640_R640x480},
+    {800U, 480U, OV5640_R800x480}, {128U, 96U, OV5640_R128x96},
+    {256U, 192U, OV5640_R256x192}
+  };
+  for (unsigned i = 0U; i < sizeof(presets) / sizeof(presets[0]); ++i)
+    if (Width == presets[i][0] && Height == presets[i][1]) return presets[i][2];
+  return OV5640_ERROR;
+}
+
 int32_t OV5640_SetResolution(OV5640_Object_t *pObj, uint32_t Resolution)
 {
   int32_t ret = OV5640_OK;

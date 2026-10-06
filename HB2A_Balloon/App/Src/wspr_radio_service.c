@@ -40,8 +40,10 @@ int wspr_radio_service_init(WsprRadioService *service,
     service->last_error = -2;
     return -2;
   }
-  si5351_Init(0);
-  si5351_EnableOutputs(0U);
+  if (si5351_Init(0) != 0 || si5351_EnableOutputs(0U) != 0) {
+    service->last_error = -3;
+    return -3;
+  }
   service->initialized = 1U;
   service->last_error = 0;
   return 0;
@@ -65,14 +67,32 @@ int wspr_radio_service_send(WsprRadioService *service,
     uint32_t target = symbol_deadline(start, i);
     int32_t frequency = symbol_frequency(service->center_frequency_hz,
                                          frame->symbols[i]);
-    si5351_SetupCLK0(frequency, SI5351_DRIVE_STRENGTH_8MA);
-    if (i == 0U) si5351_EnableOutputs(1U);
+    if (si5351_SetupCLK0(frequency, SI5351_DRIVE_STRENGTH_8MA) != 0) {
+      (void)si5351_EnableOutputs(0U);
+      service->initialized = 0U;
+      service->transmitting = 0U;
+      service->last_error = -3;
+      return -3;
+    }
+    if (i == 0U && si5351_EnableOutputs(1U) != 0) {
+      (void)si5351_EnableOutputs(0U);
+      service->initialized = 0U;
+      service->transmitting = 0U;
+      service->last_error = -4;
+      return -4;
+    }
     while ((int32_t)(HAL_GetTick() - target) < 0) {
       if (poll != NULL) poll(poll_context);
       HAL_Delay(1U);
     }
   }
-  si5351_EnableOutputs(0U);
+  if (si5351_EnableOutputs(0U) != 0) {
+    (void)si5351_EnableOutputs(0U);
+    service->initialized = 0U;
+    service->transmitting = 0U;
+    service->last_error = -5;
+    return -5;
+  }
   service->transmitting = 0U;
   ++service->tx_count;
   service->last_error = 0;
@@ -87,10 +107,22 @@ int wspr_radio_service_carrier_test(WsprRadioService *service,
       service->transmitting != 0U || frequency_hz == 0U ||
       duration_ms == 0U || duration_ms > 5000U) return -1;
   service->transmitting = 1U;
-  si5351_SetupCLK0((int32_t)frequency_hz, SI5351_DRIVE_STRENGTH_8MA);
-  si5351_EnableOutputs(1U);
+  if (si5351_SetupCLK0((int32_t)frequency_hz, SI5351_DRIVE_STRENGTH_8MA) != 0 ||
+      si5351_EnableOutputs(1U) != 0) {
+    (void)si5351_EnableOutputs(0U);
+    service->initialized = 0U;
+    service->transmitting = 0U;
+    service->last_error = -2;
+    return -2;
+  }
   HAL_Delay(duration_ms);
-  si5351_EnableOutputs(0U);
+  if (si5351_EnableOutputs(0U) != 0) {
+    (void)si5351_EnableOutputs(0U);
+    service->initialized = 0U;
+    service->transmitting = 0U;
+    service->last_error = -3;
+    return -3;
+  }
   service->transmitting = 0U;
   service->last_error = 0;
   return 0;

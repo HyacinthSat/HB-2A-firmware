@@ -137,6 +137,8 @@ typedef struct
 #define OV5640_R800x480                 0x04U   /* WVGA Resolution            */
 #define OV5640_R128x96                  0x05U   /* Balloon SSDV resolution     */
 #define OV5640_R256x192                 0x06U   /* Enlarged startup validation  */
+#define OV5640_MAX_WIDTH                2592U
+#define OV5640_MAX_HEIGHT               1944U
 
 /* Camera Pixel Format */
 #define OV5640_RGB565                   0x00U   /* Pixel Format RGB565        */
@@ -224,6 +226,10 @@ int32_t OV5640_SetHueDegree(OV5640_Object_t *pObj, int32_t Degree);
 int32_t OV5640_MirrorFlipConfig(OV5640_Object_t *pObj, uint32_t Config);
 int32_t OV5640_ZoomConfig(OV5640_Object_t *pObj, uint32_t Zoom);
 int32_t OV5640_SetResolution(OV5640_Object_t *pObj, uint32_t Resolution);
+/* Return an existing preset ID, or OV5640_ERROR for unsupported dimensions. */
+int32_t OV5640_ResolutionForSize(uint16_t Width, uint16_t Height);
+/* Configure arbitrary even dimensions after Init, preserving PLL and format. */
+int32_t OV5640_SetOutputSize(OV5640_Object_t *pObj, uint16_t Width, uint16_t Height);
 int32_t OV5640_GetResolution(OV5640_Object_t *pObj, uint32_t *Resolution);
 int32_t OV5640_SetPixelFormat(OV5640_Object_t *pObj, uint32_t PixelFormat);
 int32_t OV5640_GetPixelFormat(OV5640_Object_t *pObj, uint32_t *PixelFormat);

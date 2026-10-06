@@ -12,7 +12,7 @@
 #define APP_STARTUP_SSDV_TEST           0U
 
 #define APP_WSPR_CALL                 "BG7ZDQ"
-#define APP_WSPR_DEFAULT_GRID         "OM68"
+#define APP_WSPR_DEFAULT_GRID         "RR73" /* Explicit no-fix fallback. */
 #define APP_WSPR_ID13                 "03"
 #define APP_WSPR_CENTER_HZ            14097140UL
 #define APP_WSPR_REGULAR_MINUTE       2U
@@ -49,6 +49,11 @@
 #define APP_GMSK_DOWNLINK_FREQ_HZ     144925000UL
 #define APP_GMSK_POWER_DBM            10U
 #define APP_GMSK_TELEMETRY_PERIOD_MS  60000UL
+/* Packet FIFO RX does not depend on the continuous-mode DCLK output.
+   Set to 0 only when comparing the original DIO1/DIO2 bit receiver. */
+#ifndef APP_UPLINK_RX_FIFO
+#define APP_UPLINK_RX_FIFO            1U
+#endif
 
 /* Image and telemetry packets use the same project destination. */
 #define APP_SSDV_APRS_DEST            APP_APRS_PATH

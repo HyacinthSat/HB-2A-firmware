@@ -13,6 +13,7 @@ int main(void)
   WsprFrame frame;
 
   gnss.position_valid = 1U;
+  gnss.position_known = 1U;
   gnss.utc_valid = 1U;
   gnss.fully_resolved = 1U;
   gnss.latitude_e7 = 380208333;
@@ -40,14 +41,16 @@ int main(void)
   assert(frame.power_dbm == 10U);
   assert(frame.ready == 1U);
 
+  TelemetryFrame no_fix = {0};
+  assert(wspr_service_build_standard(&no_fix, &frame) == 0);
+  assert(strcmp(frame.grid, "RR73") == 0);
+  assert(strstr(frame.text, "RR73") != NULL);
+
   TelemetryFrame fallback;
   SensorSample missing_sensors = {0};
   TelemetryGnssSnapshot missing_gnss = {0};
   assert(telemetry_service_build(&missing_gnss, &missing_sensors, 0U,
-                                 &fallback) == 0);
-  assert(fallback.wspr_ready == 1U);
-  assert(wspr_service_build(&fallback, &frame) == 0);
-  assert(frame.ready == 1U);
+                                 &fallback) != 0);
 
   telemetry.wspr_ready = 0U;
   assert(wspr_service_build(&telemetry, &frame) == -2);

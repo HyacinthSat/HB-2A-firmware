@@ -7,6 +7,37 @@
 #include <stdio.h>
 #include <string.h>
 
+#define BOARD_STAGE_MAGIC 0x43414D00UL
+
+void board_set_stage(BoardStage stage)
+{
+  TAMP->BKP1R = BOARD_STAGE_MAGIC | (uint32_t)stage;
+  __DSB();
+}
+
+static void log_reset_details(uint32_t flags, uint32_t previous_stage)
+{
+  static const char *const stages[] = {
+    "idle", "camera-off", "camera-clock", "camera-rails", "camera-config",
+    "dcmi-init", "capture", "image-store", "ssdv"
+  };
+  char line[160];
+  uint32_t stage = previous_stage & 0xFFU;
+  const char *name = "unknown";
+  if ((previous_stage & 0xFFFFFF00UL) == BOARD_STAGE_MAGIC &&
+      stage < sizeof(stages) / sizeof(stages[0])) name = stages[stage];
+  (void)snprintf(line, sizeof(line),
+                 "RESET BOR=%u PIN=%u SW=%u IWDG=%u WWDG=%u LPWR=%u OBL=%u previous=%s\r\n",
+                 (unsigned)((flags & RCC_CSR_BORRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_PINRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_SFTRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_IWDGRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_WWDGRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_LPWRRSTF) != 0U),
+                 (unsigned)((flags & RCC_CSR_OBLRSTF) != 0U), name);
+  (void)HAL_UART_Transmit(&huart4, (uint8_t *)line, (uint16_t)strlen(line), 1000U);
+}
+
 static void board_release_resets(void)
 {
   HAL_Delay(10U);
@@ -54,10 +85,16 @@ void SystemClock_Config(void)
 int main(void)
 {
   uint32_t reset_flags = RCC->CSR;
+  uint32_t previous_stage;
   char reset_line[64];
 
   HAL_Init();
   SystemClock_Config();
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_RCC_RTCAPB_CLK_ENABLE();
+  HAL_PWR_EnableBkUpAccess();
+  previous_stage = TAMP->BKP1R;
+  board_set_stage(BOARD_STAGE_IDLE);
   MX_GPIO_Init();
   board_release_resets();
   MX_UART4_Init();
@@ -67,6 +104,11 @@ int main(void)
   (void)HAL_UART_Transmit(&huart4, (uint8_t *)reset_line,
                           (uint16_t)strlen(reset_line), 1000U);
   __HAL_RCC_CLEAR_RESET_FLAGS();
+  log_reset_details(reset_flags, previous_stage);
+  {
+    static const char build[] = "HB-2A build " __DATE__ " " __TIME__ "\r\n";
+    (void)HAL_UART_Transmit(&huart4, (uint8_t *)build, sizeof(build) - 1U, 1000U);
+  }
   app_main();
   return 0;
 }
@@ -76,4 +118,3 @@ void Error_Handler(void)
   __disable_irq();
   while (1) { }
 }
-

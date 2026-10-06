@@ -9,8 +9,10 @@
 #include "flash_selftest.h"
 #include "gnss_service.h"
 #include "gmsk_downlink.h"
+#include "high_speed_ssdv.h"
 #include "high_speed_service.h"
 #include "i2c.h"
+#include "image_storage.h"
 #include "main.h"
 #include "sensors.h"
 #include "spi.h"
@@ -25,7 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
-/* The target linker reserves only 0x400 bytes for the main stack. Keep the
+/* The target linker reserves 0x1000 bytes for the main stack. Keep the
    protocol frames and APRS retry state out of that stack. The application is
    single-threaded, so these workspaces are not concurrently accessed. */
 static AprsScheduleService g_aprs_schedule;
@@ -38,10 +40,14 @@ static WsprFrame g_telemetry_wspr;
 static char g_telemetry_debug_line[TELEMETRY_APRS_TEXT_CAPACITY + 64U];
 static WsprFrame g_wspr_frame;
 static char g_selftest_line[512];
-static char g_radio_diagnostic[512];
+static char g_radio_diagnostic[768];
 static TransponderService g_transponder;
 static HighSpeedService g_high_speed;
 static uint8_t g_gmsk_bits[GMSK_DOWNLINK_MAX_PACKED_BYTES];
+static uint8_t g_high_speed_bits[GMSK_HIGH_SPEED_MAX_PACKED_BYTES];
+static uint8_t g_high_speed_frames[GMSK_HIGH_SPEED_MAX_CODEWORDS *
+                                   GMSK_HIGH_SPEED_DATA_BYTES];
+static uint8_t g_high_speed_frame_count;
 
 typedef struct {
   GnssService *gnss;
@@ -53,6 +59,8 @@ static StartupSelfTestContext g_selftest_context;
 static StartupSelfTestPlan g_selftest_plan;
 static CameraPort g_ssdv_next_camera = CAMERA_A;
 static uint8_t g_ssdv_next_image_id;
+static uint32_t g_ssdv_next_image_sequence;
+static ImageStorage g_image_storage;
 static uint64_t g_ssdv_last_group_slot = UINT64_MAX;
 
 static void app_debug(const char *text)
@@ -85,10 +93,93 @@ static int gmsk_send_text(const char *text, GnssService *gnss)
                  result, (unsigned long)bit_count, duration,
                  SX1278_APRS_RxActive());
   app_debug(g_debug_line);
+  SX1278_APRS_TxReport(g_radio_diagnostic, sizeof(g_radio_diagnostic));
+  app_debug(g_radio_diagnostic);
+  return result;
+}
+
+static int high_speed_rate(uint8_t rate_id, uint32_t *bitrate,
+                           uint32_t *deviation_hz)
+{
+  static const uint32_t rates[] = {4800U, 9600U, 19200U, 38400U,
+                                   57600U, 115200U};
+  static const uint32_t deviations[] = {1200U, 2400U, 4800U, 9600U,
+                                        14400U, 28800U};
+  if (bitrate == NULL || deviation_hz == NULL || rate_id >= 6U) return -1;
+  *bitrate = rates[rate_id];
+  *deviation_hz = deviations[rate_id];
+  return 0;
+}
+
+static int high_speed_send_group(const uint8_t *frames, uint8_t frame_count,
+                                 const HighSpeedParameters *parameters,
+                                 GnssService *gnss)
+{
+  size_t bit_count;
+  uint32_t bitrate;
+  uint32_t deviation_hz;
+  int duration;
+  int result;
+  if (frames == NULL || parameters == NULL || gnss == NULL ||
+      high_speed_rate(parameters->rate_id, &bitrate, &deviation_hz) != 0)
+    return -1;
+  result = gmsk_high_speed_encode(frames, frame_count, parameters->code_id,
+                                  parameters->intlv_id, g_high_speed_bits,
+                                  sizeof(g_high_speed_bits), &bit_count);
+  if (result != 0) return result;
+  duration = SX1278_APRS_PrepareGmsk(g_high_speed_bits, bit_count, bitrate,
+                                     deviation_hz);
+  if (duration < 0) return duration;
+  (void)snprintf(g_debug_line, sizeof(g_debug_line),
+                 "HS SSDV TX group=%u rate=%u code=%u intlv=%u bits=%lu\r\n",
+                 (unsigned)frame_count, (unsigned)parameters->rate_id,
+                 (unsigned)parameters->code_id, (unsigned)parameters->intlv_id,
+                 (unsigned long)bit_count);
+  app_debug(g_debug_line);
+  result = SX1278_APRS_SendGmsk(APP_GMSK_DOWNLINK_FREQ_HZ,
+                                (uint32_t)duration + 500U,
+                                wspr_radio_gnss_poll, gnss);
   if (result != 0) {
     SX1278_APRS_TxReport(g_radio_diagnostic, sizeof(g_radio_diagnostic));
     app_debug(g_radio_diagnostic);
   }
+  return result;
+}
+
+typedef struct {
+  const HighSpeedParameters *parameters;
+  GnssService *gnss;
+} HighSpeedSsdvSendContext;
+
+static int high_speed_ssdv_packet(const uint8_t *packet, size_t length,
+                                  void *context)
+{
+  HighSpeedSsdvSendContext *send_context = (HighSpeedSsdvSendContext *)context;
+  size_t depth;
+  int result;
+  if (packet == NULL || send_context == NULL || send_context->parameters == NULL ||
+      send_context->gnss == NULL || length < APP_SSDV_PACKET_SIZE) return -1;
+  switch (send_context->parameters->intlv_id) {
+    case 1U: depth = 1U; break;
+    case 2U: depth = 2U; break;
+    case 3U: depth = 3U; break;
+    case 4U: depth = 4U; break;
+    case 5U: depth = 5U; break;
+    case 8U: depth = 8U; break;
+    default: return -1;
+  }
+  if (g_high_speed_frame_count >= GMSK_HIGH_SPEED_MAX_CODEWORDS) return -2;
+  if (high_speed_ssdv_build_frame(packet, length, APP_WSPR_CALL,
+                                  g_high_speed_frames +
+                                      g_high_speed_frame_count *
+                                      GMSK_HIGH_SPEED_DATA_BYTES,
+                                  GMSK_HIGH_SPEED_DATA_BYTES) != 0) return -3;
+  ++g_high_speed_frame_count;
+  if (g_high_speed_frame_count < depth && (packet[11] & 0x04U) == 0U)
+    return 0;
+  result = high_speed_send_group(g_high_speed_frames, g_high_speed_frame_count,
+                                 send_context->parameters, send_context->gnss);
+  g_high_speed_frame_count = 0U;
   return result;
 }
 
@@ -106,15 +197,91 @@ static void high_speed_drain_events(AppFlow *flow, GnssService *gnss)
         (void)app_flow_dispatch(flow, APP_EVENT_HS_CANCEL);
         return;
       }
+      if (event == HS_EVENT_SEND_CONNECTION) {
+        /* Measure the proposed modulation on air before accepting CFRM.
+           HSCON stays on the robust 4800 control channel. */
+        size_t depth = g_high_speed.parameters.intlv_id;
+        (void)snprintf(text, sizeof(text), "HSTST,%u,%u,%u",
+                       g_high_speed.parameters.rate_id,
+                       g_high_speed.parameters.code_id,
+                       g_high_speed.parameters.intlv_id);
+        for (size_t i = 0U; i < depth; ++i) {
+          uint8_t *frame = g_high_speed_frames + i * GMSK_HIGH_SPEED_DATA_BYTES;
+          memset(frame, 0x20, GMSK_HIGH_SPEED_DATA_BYTES);
+          frame[0] = 0U; frame[1] = 2U;
+          frame[2] = (uint8_t)i; frame[3] = (uint8_t)i;
+          memcpy(frame + 4U, text, strlen(text));
+        }
+        if (high_speed_send_group(g_high_speed_frames, (uint8_t)depth,
+                                   &g_high_speed.parameters, gnss) != 0) {
+          app_debug("HS probe TX failed; negotiation cancelled\r\n");
+          high_speed_service_init(&g_high_speed);
+          (void)app_flow_dispatch(flow, APP_EVENT_HS_CANCEL);
+          return;
+        }
+      }
       high_speed_service_control_sent(&g_high_speed, event, HAL_GetTick());
     } else if (event == HS_EVENT_TIMEOUT) {
       app_debug("HS negotiation timeout; back to experiment RX\r\n");
       (void)app_flow_dispatch(flow, APP_EVENT_HS_CANCEL);
     } else if (event == HS_EVENT_START_TRANSFER) {
-      /* High-speed SSDV is the next milestone. Reject explicitly rather than
-         leave the flight loop stuck forever in HS_TRANSFER without RF. */
-      (void)gmsk_send_text("ERR,CFRM,NOTREADY", gnss);
-      high_speed_service_init(&g_high_speed);
+      HighSpeedSsdvSendContext context;
+      uint32_t image_sequence;
+      int result;
+      (void)app_flow_dispatch(flow, APP_EVENT_TRANSFER_STARTED);
+      SX1278_APRS_RxStop();
+      high_speed_ssdv_reset_counters();
+      g_high_speed_frame_count = 0U;
+      context.parameters = &g_high_speed.parameters;
+      context.gnss = gnss;
+      if (g_high_speed.request == HS_REQUEST_CAPTURE) {
+        image_sequence = g_ssdv_next_image_sequence;
+        result = camera_ssdv_run_high_speed_capture(
+            gnss, g_high_speed.camera == 'B' ? CAMERA_B : CAMERA_A,
+            image_sequence, g_high_speed.width, g_high_speed.height,
+            g_high_speed.quality, high_speed_ssdv_packet, &context, app_debug);
+        /* A captured and stored image keeps its number even if RF transfer
+           fails; REQF must be able to retry that image later. */
+        if (g_image_storage.has_image != 0U &&
+            g_image_storage.latest_sequence == image_sequence)
+          ++g_ssdv_next_image_sequence;
+      } else if (g_high_speed.request == HS_REQUEST_FILE &&
+                 g_image_storage.has_image != 0U &&
+                 g_high_speed.file_index <= g_image_storage.latest_sequence) {
+        image_sequence = g_image_storage.latest_sequence - g_high_speed.file_index;
+        if (image_storage_contains(&g_image_storage, image_sequence) != 0) {
+          result = camera_ssdv_run_high_speed_file(
+              gnss, &g_image_storage, image_sequence, APP_SSDV_QUALITY,
+              high_speed_ssdv_packet, &context, app_debug);
+        } else {
+          result = -20;
+        }
+      } else {
+        result = -20;
+      }
+      if (result != 0) {
+        if (result == -20) {
+          (void)gmsk_send_text("HSREJ,NOFILE", gnss);
+        } else {
+          /* Keep the stable HSREJ,TRANSFER prefix while exposing the
+             camera/SSDV callback result for ground-side diagnosis. */
+          char reject[32];
+          (void)snprintf(reject, sizeof(reject), "HSREJ,TRANSFER,%d", result);
+          (void)gmsk_send_text(reject, gnss);
+        }
+        high_speed_service_transfer_done(&g_high_speed, 1U);
+        app_debug("HS SSDV transfer failed\r\n");
+      } else {
+        high_speed_service_transfer_done(&g_high_speed, 0U);
+        (void)gmsk_send_text("HSDONE", gnss);
+        app_debug("HS SSDV transfer complete\r\n");
+      }
+      (void)app_flow_dispatch(flow, result == 0 ? APP_EVENT_HS_COMPLETE :
+                               APP_EVENT_HS_CANCEL);
+      (void)SX1278_APRS_RxStart();
+    } else if (event == HS_EVENT_TRANSFER_DONE) {
+      (void)app_flow_dispatch(flow, APP_EVENT_HS_COMPLETE);
+    } else if (event == HS_EVENT_CANCELLED) {
       (void)app_flow_dispatch(flow, APP_EVENT_HS_CANCEL);
     }
   }
@@ -186,10 +353,15 @@ static int selftest_sx1278(void *context, uint8_t attempt,
   StartupSelfTestContext *selftest = (StartupSelfTestContext *)context;
   int result;
   (void)attempt;
-  if (selftest == NULL || selftest->aprs == NULL ||
-      selftest->aprs->initialized == 0U) {
+  if (selftest == NULL || selftest->aprs == NULL) {
     startup_selftest_report_error(report, 2U, "SPIE");
     return -1;
+  }
+  if (attempt != 1U || selftest->aprs->initialized == 0U) {
+    if (aprs_service_init(selftest->aprs) != 0) {
+      startup_selftest_report_error(report, 2U, "SPIE");
+      return -1;
+    }
   }
   app_debug("SELFTEST SX1278 carrier start freq=144640000 power=20dBm duration=1000ms\r\n");
   result = SX1278_APRS_SetPowerDbm(20U);
@@ -218,10 +390,15 @@ static int selftest_si5351(void *context, uint8_t attempt,
 {
   StartupSelfTestContext *selftest = (StartupSelfTestContext *)context;
   (void)attempt;
-  if (selftest == NULL || selftest->wspr == NULL ||
-      selftest->wspr->initialized == 0U) {
+  if (selftest == NULL || selftest->wspr == NULL) {
     startup_selftest_report_error(report, 3U, "I2CE");
     return -1;
+  }
+  if (attempt != 1U || selftest->wspr->initialized == 0U) {
+    if (wspr_radio_service_init(selftest->wspr, APP_WSPR_CENTER_HZ) != 0) {
+      startup_selftest_report_error(report, 3U, "I2CE");
+      return -1;
+    }
   }
   if (wspr_radio_service_carrier_test(selftest->wspr, 14095600UL, 1000U) != 0) {
     startup_selftest_report_error(report, 3U, "CONF");
@@ -491,11 +668,12 @@ static void ssdv_capture_after_aprs06(const GnssSolution *solution,
       solution->utc_valid == 0U || solution->fully_resolved == 0U ||
       (solution->minute % 10U) != 6U) return;
   if (camera_ssdv_active() == 0U) {
-    result = camera_ssdv_capture_start(aprs, gnss, g_ssdv_next_camera,
-                                       g_ssdv_next_image_id,
-                                       APP_SSDV_QUALITY, app_debug);
+    result = camera_ssdv_capture_start_sequence(
+        aprs, gnss, g_ssdv_next_camera, g_ssdv_next_image_sequence,
+        APP_SSDV_QUALITY, app_debug);
     if (result == 0) {
       g_ssdv_next_camera = g_ssdv_next_camera == CAMERA_A ? CAMERA_B : CAMERA_A;
+      ++g_ssdv_next_image_sequence;
       ++g_ssdv_next_image_id;
     } else {
       app_debug("SSDV scheduled capture failed; retrying camera next 06\r\n");
@@ -553,6 +731,7 @@ static int telemetry_report(const GnssService *gnss, TelemetryFrame *reported,
   Sensors_Poll();
   memset(snapshot, 0, sizeof(*snapshot));
   snapshot->position_valid = solution->position_valid;
+  snapshot->position_known = solution->position_known;
   snapshot->utc_valid = solution->utc_valid;
   snapshot->fully_resolved = solution->fully_resolved;
   snapshot->latitude_e7 = solution->latitude_e7;
@@ -612,6 +791,18 @@ void app_main(void)
   MX_USART2_UART_Init();
   MX_I2C3_Init();
   MX_SPI2_Init();
+  if (image_storage_init(&g_image_storage) == 0) {
+    camera_ssdv_set_storage(&g_image_storage);
+    g_ssdv_next_image_sequence = g_image_storage.has_image != 0U ?
+        g_image_storage.latest_sequence + 1U : 0U;
+    g_ssdv_next_image_id = (uint8_t)g_ssdv_next_image_sequence;
+    (void)snprintf(g_radio_diagnostic, sizeof(g_radio_diagnostic),
+                   "IMAGE storage ready latest=%lu\r\n",
+                   (unsigned long)image_storage_latest(&g_image_storage));
+    app_debug(g_radio_diagnostic);
+  } else {
+    app_debug("IMAGE storage init failed\r\n");
+  }
   MX_I2C2_Init();
   if (aprs_service_init(&aprs) == 0) {
     app_debug("SELFTEST SX1278 transport initialized\r\n");
@@ -662,6 +853,12 @@ void app_main(void)
                    "SSDV startup test complete rc=%d\r\n", image_result);
     app_debug(g_debug_line);
   }
+  /* The optional startup capture also uses the persistent image directory.
+     Continue numbering after anything it stored before accepting CAPTR. */
+  if (g_image_storage.has_image != 0U) {
+    g_ssdv_next_image_sequence = g_image_storage.latest_sequence + 1U;
+    g_ssdv_next_image_id = (uint8_t)g_ssdv_next_image_sequence;
+  }
 #endif
   Sensors_Init();
   app_debug("NORMAL sensors initialized\r\n");
@@ -707,6 +904,16 @@ void app_main(void)
       for (;;) { }
     }
     const GnssSolution *solution = gnss_service_solution(&gnss);
+    if (app_flow_mode(&flow) == APP_MODE_NORMAL &&
+        wspr_radio.transmitting == 0U && wspr_radio.initialized == 0U &&
+        (int32_t)(HAL_GetTick() - wspr_retry_after) >= 0) {
+      if (wspr_radio_service_init(&wspr_radio, APP_WSPR_CENTER_HZ) == 0) {
+        app_debug("NORMAL WSPR SI5351 reinitialized\r\n");
+        wspr_retry_after = 0U;
+      } else {
+        wspr_retry_after = HAL_GetTick() + 1000U;
+      }
+    }
     uint64_t wspr_due_slot = UINT64_MAX;
     if (app_flow_mode(&flow) == APP_MODE_NORMAL &&
         wspr_radio.initialized != 0U &&
@@ -848,16 +1055,38 @@ void app_main(void)
                        "UPLINK command=%s blocks=%u CRC=OK mode=%u\r\n",
                        command_name, command.block_count, (unsigned)mode);
         app_debug(g_radio_diagnostic);
-        if (mode == APP_MODE_NORMAL && command.block_count == 1U &&
+        if ((mode == APP_MODE_NORMAL || mode == APP_MODE_EXPERIMENT) &&
+            command.block_count == 1U &&
             memcmp(command.data, "EXPR", 4U) == 0) {
           (void)app_flow_dispatch(&flow, APP_EVENT_VALID_EXPR);
           experiment_deadline_ms = HAL_GetTick() + 300000UL;
           app_debug("UPLINK EXPR accepted; experiment mode\r\n");
           (void)gmsk_send_text("ACK,EXPR", &gnss);
-          next_telemetry_report = HAL_GetTick();
+          if (mode == APP_MODE_NORMAL) next_telemetry_report = HAL_GetTick();
+        } else if (mode == APP_MODE_HS_NEGOTIATION &&
+                   (memcmp(command.data, "CAPTR", 5U) == 0 ||
+                    memcmp(command.data, "REQF", 4U) == 0)) {
+          /* Requests have no transaction ID. Re-advertise the existing
+             session on an ACK loss; never capture a duplicate image. */
+          (void)gmsk_send_text(g_high_speed.request == HS_REQUEST_CAPTURE ?
+                                 "ACK,CAPTR" : "ACK,REQF", &gnss);
+          (void)gmsk_send_text("HSSUP,3F,0F,3F", &gnss);
+          high_speed_service_control_sent(&g_high_speed, HS_EVENT_SEND_SUPPORT,
+                                            HAL_GetTick());
         } else if (mode == APP_MODE_EXPERIMENT &&
                    (memcmp(command.data, "CAPTR", 5U) == 0 ||
                     memcmp(command.data, "REQF", 4U) == 0)) {
+          if (memcmp(command.data, "CAPTR", 5U) == 0) {
+            char cap_camera[8], cap_width[8], cap_height[8], cap_quality[8];
+            (void)uplink_field_text(&command, 1U, cap_camera, sizeof(cap_camera));
+            (void)uplink_field_text(&command, 2U, cap_width, sizeof(cap_width));
+            (void)uplink_field_text(&command, 3U, cap_height, sizeof(cap_height));
+            (void)uplink_field_text(&command, 4U, cap_quality, sizeof(cap_quality));
+            (void)snprintf(g_radio_diagnostic, sizeof(g_radio_diagnostic),
+                           "UPLINK CAPTR request camera=%s width=%s height=%s quality=%s\r\n",
+                           cap_camera, cap_width, cap_height, cap_quality);
+            app_debug(g_radio_diagnostic);
+          }
           if (high_speed_service_start(&g_high_speed, &command,
                                        HAL_GetTick()) == 0) {
             (void)app_flow_dispatch(
@@ -915,8 +1144,11 @@ void app_main(void)
       if (app_flow_mode(&flow) == APP_MODE_NORMAL &&
           wspr_radio.transmitting == 0U &&
           (wspr_radio.initialized == 0U || wspr_start_imminent(solution) == 0U) &&
-          aprs_start_imminent(solution) == 0U && camera_ssdv_active() == 0U) {
+          aprs_start_imminent(solution) == 0U) {
+        uint32_t forwarded_before = g_transponder.forwarded_count;
         transponder_service_poll(&g_transponder, &aprs);
+        if (g_transponder.forwarded_count != forwarded_before)
+          app_debug("TRANSPONDER APRS TX complete freq=144925000\r\n");
       }
     }
     HAL_Delay(10U);

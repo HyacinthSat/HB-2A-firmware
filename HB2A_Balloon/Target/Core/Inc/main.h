@@ -53,6 +53,19 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+/* TAMP BKP1 is a reset-surviving camera breadcrumb; BKP0 is the boot count. */
+typedef enum {
+  BOARD_STAGE_IDLE = 0,
+  BOARD_STAGE_CAMERA_OFF,
+  BOARD_STAGE_CAMERA_CLOCK,
+  BOARD_STAGE_CAMERA_RAILS,
+  BOARD_STAGE_CAMERA_CONFIG,
+  BOARD_STAGE_DCMI_INIT,
+  BOARD_STAGE_CAPTURE,
+  BOARD_STAGE_IMAGE_STORE,
+  BOARD_STAGE_SSDV
+} BoardStage;
+void board_set_stage(BoardStage stage);
 
 /* USER CODE END EFP */
 

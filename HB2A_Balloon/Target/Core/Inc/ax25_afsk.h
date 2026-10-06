@@ -22,8 +22,9 @@ typedef struct {
 uint16_t AX25_Crc(const uint8_t *data, size_t length);
 int AX25_Build(const char *source, const char *destination,
                const uint8_t *info, size_t length, uint8_t *out, size_t capacity);
-/* Build a UI frame with one digipeater/path address. The path address is
-   emitted as supplied and marked H=1 after the HB-2A validation. */
+/* Build a UI frame with one digipeater/path address. Pass the path text
+   without '*'; the builder sets H=1 in the path SSID byte, which APRS
+   decoders display as the trailing '*'. */
 int AX25_BuildPath(const char *source, const char *destination,
                    const char *path, const uint8_t *info, size_t length,
                    uint8_t *out, size_t capacity);

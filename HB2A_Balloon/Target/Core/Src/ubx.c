@@ -69,11 +69,18 @@ static HAL_StatusTypeDef send_frame(uint8_t id, const uint8_t *payload, uint16_t
 
 int Ubx_Init(UART_HandleTypeDef *huart)
 {
-  s_uart = huart;
+  UART_HandleTypeDef *previous = s_uart;
+  if (huart == NULL) return -1;
+  /* Detach callbacks before aborting: an IRQ must not rearm the old RX. */
+  s_uart = NULL;
+  __DMB();
+  if (previous != NULL && previous != huart &&
+      HAL_UART_AbortReceive(previous) != HAL_OK) return -1;
+  if (HAL_UART_AbortReceive(huart) != HAL_OK) return -1;
   s_state = 0U; s_head = 0U; s_tail = 0U; s_rx_errors = 0U;
   s_ack = 0; s_verified = 0;
-  if (huart == NULL) return -1;
   __HAL_UART_CLEAR_OREFLAG(huart);
+  s_uart = huart;
   return HAL_UART_Receive_IT(huart, &s_rx_byte, 1U) == HAL_OK ? 0 : -1;
 }
 
@@ -158,7 +165,17 @@ void Ubx_OnByte(uint8_t b)
     case 4: s_len = b; checksum(b); s_state = 5U; break;
     case 5:
       s_len |= (uint16_t)b << 8; checksum(b); s_pos = 0U;
-      s_state = s_len ? 6U : 7U; break;
+      /* Reject an impossible payload before entering a long discard loop.
+         A corrupted 0xFFFF length must not consume the next 65 KB of UART
+         traffic and hide valid NAV-PVT frames. The next byte is treated as
+         a fresh sync candidate. */
+      if (s_len > UBX_MAX_PAYLOAD) {
+        s_state = 0U;
+        s_len = 0U;
+      } else {
+        s_state = s_len ? 6U : 7U;
+      }
+      break;
     case 6:
       /* Long NAV-SAT frames still need framing; never scan their data for sync. */
       if (s_pos < UBX_MAX_PAYLOAD) s_payload[s_pos] = b;

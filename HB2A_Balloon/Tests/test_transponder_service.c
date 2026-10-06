@@ -30,7 +30,7 @@ int main(void)
   memcpy(command.data, "TRANPD", 6U);
   memcpy(command.data + 7U, "CALL1", 5U);
   memcpy(command.data + 14U, "APZDQ7", 6U);
-  memcpy(command.data + 21U, "HB-2A", 5U);
+  memcpy(command.data + 21U, "APZDQ7", 6U);
   command.block_count = 5U;
   memset(command.data + 28U, 0x20, UPLINK_BCH_DATA_BYTES);
   transponder_service_init(&service);
@@ -39,8 +39,10 @@ int main(void)
   assert(sends == 1U);
   assert(strcmp(sent.source, "CALL1") == 0);
   assert(strcmp(sent.destination, "APZDQ7") == 0);
-  assert(strcmp(sent.path, "HB-2A") == 0);
+  assert(strcmp(sent.path, TRANSPONDER_AX25_PATH) == 0);
   assert(sent.text_length == 0U);
+  memcpy(command.data + 7U, "TOOLONG", 7U);
+  assert(transponder_service_enqueue(&service, &command) == -4);
   puts("transponder service tests passed");
   return 0;
 }

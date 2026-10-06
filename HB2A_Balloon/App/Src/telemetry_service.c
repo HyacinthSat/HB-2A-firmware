@@ -34,7 +34,13 @@ static void fill_position_sample(const TelemetryGnssSnapshot *gnss, uint8_t posi
 {
   memset(sample, 0, sizeof(*sample));
   sample->gps_valid = position_valid;
-  if (position_valid == 0U) return;
+  /* Keep the last coordinate in the packet when the fix drops, while the
+     gps_valid bit tells consumers that it is held rather than current. */
+  if (gnss == NULL || gnss->position_known == 0U ||
+      gnss->latitude_e7 < -900000000L ||
+      gnss->latitude_e7 > 900000000L ||
+      gnss->longitude_e7 < -1800000000L ||
+      gnss->longitude_e7 > 1800000000L) return;
   sample->latitude_e7 = gnss->latitude_e7;
   sample->longitude_e7 = gnss->longitude_e7;
   sample->altitude_m = height_mm_to_m(gnss->height_msl_mm);
@@ -72,6 +78,10 @@ int telemetry_service_build(const TelemetryGnssSnapshot *gnss,
   position_valid = valid_position(gnss);
   out->position_valid = position_valid;
   fill_position_sample(gnss, position_valid, &out->wspr_sample);
+  if (gnss == NULL || gnss->position_known == 0U ||
+      gnss->latitude_e7 < -900000000L || gnss->latitude_e7 > 900000000L ||
+      gnss->longitude_e7 < -1800000000L || gnss->longitude_e7 > 1800000000L)
+    return -3;
   fill_sensor_sample(sensors, &out->wspr_sample, &out->sensor_data_valid);
   U4B_BuildBasic(&out->wspr_sample, APP_WSPR_ID13, &out->wspr_message);
   /* Missing sensors are represented by zero/default fields in the U4B frame;

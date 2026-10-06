@@ -16,9 +16,11 @@ typedef enum {
 
 typedef struct {
   uint8_t position_valid;
+  uint8_t position_known;
   uint8_t utc_valid;
   uint8_t fully_resolved;
   uint8_t fix_type;
+  uint8_t utc_holdover;
   int32_t longitude_e7;
   int32_t latitude_e7;
   int32_t height_msl_mm;
@@ -38,6 +40,7 @@ typedef struct {
   GnssSolution solution;
   uint32_t nav_pvt_count;
   uint32_t last_rx_errors;
+  uint32_t clock_tick;
 } GnssService;
 
 int gnss_service_init(GnssService *service, UART_HandleTypeDef *uart);

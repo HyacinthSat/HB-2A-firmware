@@ -11,6 +11,7 @@ static void test_valid_snapshot(void)
   TelemetryFrame frame;
 
   gnss.position_valid = 1U;
+  gnss.position_known = 1U;
   gnss.utc_valid = 1U;
   gnss.fully_resolved = 1U;
   gnss.latitude_e7 = 380208333;
@@ -47,22 +48,48 @@ static void test_invalid_position_and_sensor(void)
   SensorSample sensors = {0};
   TelemetryFrame frame;
 
+  gnss.latitude_e7 = 380208333;
+  gnss.longitude_e7 = 1124583333;
+  gnss.position_known = 1U;
   assert(telemetry_service_build(&gnss, &sensors, 0U, &frame) == 0);
   assert(frame.position_valid == 0U);
   assert(frame.sensor_data_valid == 0U);
   assert(frame.wspr_ready == 1U);
-  assert(frame.wspr_sample.latitude_e7 == 0);
-  assert(frame.wspr_sample.longitude_e7 == 0);
+  assert(frame.wspr_sample.latitude_e7 == 380208333);
+  assert(frame.wspr_sample.longitude_e7 == 1124583333);
   assert(frame.wspr_sample.gps_valid == 0U);
+  assert(strstr(frame.aprs_text, "3801.25N/11227.50E") != NULL);
   assert(frame.aprs_frequency_hz == 144640000UL);
   assert(strstr(frame.aprs_text, "BG7ZDQ-11>APZDQ7:!") == frame.aprs_text);
   assert(strstr(frame.aprs_text, "T,NA,NA") != NULL);
+}
+
+static void test_no_historical_position(void)
+{
+  TelemetryGnssSnapshot gnss = {0};
+  SensorSample sensors = {0};
+  TelemetryFrame frame;
+
+  assert(telemetry_service_build(&gnss, &sensors, 0U, &frame) != 0);
+}
+
+static void test_known_but_invalid_position(void)
+{
+  TelemetryGnssSnapshot gnss = {0};
+  SensorSample sensors = {0};
+  TelemetryFrame frame;
+
+  gnss.position_known = 1U;
+  gnss.latitude_e7 = 900000001L;
+  assert(telemetry_service_build(&gnss, &sensors, 0U, &frame) != 0);
 }
 
 int main(void)
 {
   test_valid_snapshot();
   test_invalid_position_and_sensor();
+  test_no_historical_position();
+  test_known_but_invalid_position();
   puts("telemetry_service tests passed");
   return 0;
 }

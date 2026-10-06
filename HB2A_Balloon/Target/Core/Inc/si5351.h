@@ -42,15 +42,15 @@ typedef struct {
  si5351RDiv_t rdiv;
 } si5351OutputConfig_t;
 
-void si5351_Init(int32_t correction);
-void si5351_SetupCLK0(int32_t Fclk, si5351DriveStrength_t driveStrength);
-void si5351_SetupCLK2(int32_t Fclk, si5351DriveStrength_t driveStrength);
-void si5351_EnableOutputs(uint8_t enabled);
+int si5351_Init(int32_t correction);
+int si5351_SetupCLK0(int32_t Fclk, si5351DriveStrength_t driveStrength);
+int si5351_SetupCLK2(int32_t Fclk, si5351DriveStrength_t driveStrength);
+int si5351_EnableOutputs(uint8_t enabled);
 
 void si5351_Calc(int32_t Fclk, si5351PLLConfig_t* pll_conf, si5351OutputConfig_t* out_conf);
 void si5351_CalcIQ(int32_t Fclk, si5351PLLConfig_t* pll_conf, si5351OutputConfig_t* out_conf);
 
-void si5351_SetupPLL(si5351PLL_t pll, si5351PLLConfig_t* conf);
+int si5351_SetupPLL(si5351PLL_t pll, si5351PLLConfig_t* conf);
 int si5351_SetupOutput(uint8_t output, si5351PLL_t pllSource, si5351DriveStrength_t driveStength, si5351OutputConfig_t* conf, uint8_t phaseOffset);
 
 #endif

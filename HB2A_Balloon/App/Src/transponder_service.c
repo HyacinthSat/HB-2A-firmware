@@ -8,18 +8,28 @@ static void field(const UplinkCommand *command, uint8_t block,
   (void)uplink_field_text(command, block, out, 8U);
 }
 
-static void call_field(const UplinkCommand *command, uint8_t block,
-                       char out[8])
+static int valid_call(const char *call)
 {
-  field(command, block, out);
-  /* AX.25 allows six base-call characters plus an optional -SSID suffix.
-     The uplink field itself is seven bytes, so an overlong base call is
-     truncated before the common AX.25 address builder validates it. */
-  {
-    char *dash = strchr(out, '-');
-    if (dash == NULL && strlen(out) > 6U) out[6] = 0;
-    else if (dash != NULL && (size_t)(dash - out) > 6U) out[6] = 0;
+  size_t i = 0U;
+  size_t base = 0U;
+  unsigned ssid = 0U;
+  unsigned digits = 0U;
+  if (call == NULL) return 0;
+  while (call[i] != 0 && call[i] != '-') {
+    if (!((call[i] >= 'A' && call[i] <= 'Z') ||
+          (call[i] >= '0' && call[i] <= '9')) || ++base > 6U) return 0;
+    ++i;
   }
+  if (base == 0U) return 0;
+  if (call[i] == '-') {
+    ++i;
+    while (call[i] != 0) {
+      if (call[i] < '0' || call[i] > '9' || ++digits > 2U) return 0;
+      ssid = ssid * 10U + (unsigned)(call[i++] - '0');
+    }
+    if (digits == 0U || ssid > 15U) return 0;
+  }
+  return 1;
 }
 
 void transponder_service_init(TransponderService *service)
@@ -31,19 +41,24 @@ int transponder_service_enqueue(TransponderService *service,
                                 const UplinkCommand *command)
 {
   TransponderPacket *packet;
+  char source[8];
+  char destination[8];
   char path[8];
   if (service == NULL || command == NULL || command->block_count != 5U ||
       memcmp(command->data, "TRANPD", 6U) != 0) return -3;
   field(command, 3U, path);
-  if (strcmp(path, "HB-2A") != 0) return -4;
+  if (strcmp(path, TRANSPONDER_AX25_PATH) != 0) return -4;
+  field(command, 1U, source);
+  field(command, 2U, destination);
+  if (!valid_call(source) || !valid_call(destination)) return -4;
   if (service->count >= TRANSPONDER_QUEUE_CAPACITY) {
     ++service->dropped_count; /* The newest packet is discarded. */
     return -2;
   }
   packet = &service->queue[(service->head + service->count) %
                            TRANSPONDER_QUEUE_CAPACITY];
-  call_field(command, 1U, packet->source);
-  call_field(command, 2U, packet->destination);
+  memcpy(packet->source, source, sizeof(packet->source));
+  memcpy(packet->destination, destination, sizeof(packet->destination));
   memcpy(packet->path, path, sizeof(packet->path));
   packet->text_length = UPLINK_BCH_DATA_BYTES;
   memcpy(packet->text, command->data + 4U * UPLINK_BCH_DATA_BYTES,

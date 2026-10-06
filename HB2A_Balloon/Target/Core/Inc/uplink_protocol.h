@@ -43,6 +43,9 @@ typedef struct {
 } UplinkDecoder;
 
 void uplink_decoder_init(UplinkDecoder *decoder);
+/* Start at the NRZI BCH payload after the radio has matched the wire ASM.
+   Does not synthesize received preamble bits or bypass BCH/CRC validation. */
+void uplink_decoder_begin_payload(UplinkDecoder *decoder);
 void uplink_decoder_push_bit(UplinkDecoder *decoder, uint8_t bit);
 int uplink_decoder_take(UplinkDecoder *decoder, UplinkCommand *command);
 

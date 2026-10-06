@@ -31,6 +31,13 @@ static uint32_t ssdv_jpeg_length;
 static uint32_t ssdv_offset;
 static unsigned ssdv_packets;
 static uint8_t dcmi_initialized;
+static ImageStorage *image_storage;
+static uint8_t high_speed_jpeg[CAMERA_JPEG_BUFFER_SIZE];
+
+void camera_ssdv_set_storage(ImageStorage *storage)
+{
+  image_storage = storage;
+}
 
 static void write_log(CameraSsdvLogFn log, const char *text)
 {
@@ -103,6 +110,11 @@ static void delay_with_poll(uint32_t milliseconds, AprsServicePollFn poll,
 static void poll_gnss(void *context)
 {
   gnss_service_poll((GnssService *)context);
+}
+
+static void capture_poll(void *context)
+{
+  poll_gnss(context);
 }
 
 static int send_ssdv_packet(AprsService *radio, GnssService *gnss,
@@ -208,7 +220,9 @@ static void ensure_dcmi(void)
   }
 }
 
-static int capture_jpeg(CameraPort port, uint8_t image_id,
+static int capture_jpeg(CameraPort port, uint16_t width, uint16_t height,
+                        GnssService *gnss,
+                        uint8_t image_id,
                         uint8_t **jpeg, uint32_t *length,
                         CameraSsdvLogFn log)
 {
@@ -216,8 +230,13 @@ static int capture_jpeg(CameraPort port, uint8_t image_id,
   int result;
 
   if (jpeg == NULL || length == NULL) return -1;
+  write_log(log, "CAM capture DCMI init start\r\n");
+  board_set_stage(BOARD_STAGE_DCMI_INIT);
   ensure_dcmi();
-  result = camera_init_resolution(port, CAMERA_RESOLUTION_256X192);
+  (void)snprintf(line, sizeof(line), "CAM capture DCMI ready; sensor %c size=%ux%u\r\n",
+                 port == CAMERA_A ? 'A' : 'B', (unsigned)width, (unsigned)height);
+  write_log(log, line);
+  result = camera_init_dimensions(port, width, height);
   if (result != 0) {
     camera_power_off();
     (void)snprintf(line, sizeof(line), "CAM %c init failed rc=%d\r\n",
@@ -228,16 +247,25 @@ static int capture_jpeg(CameraPort port, uint8_t image_id,
   for (unsigned i = 0U; i < APP_CAMERA_WARMUP_COUNT; ++i) {
     uint8_t *discard = NULL;
     uint32_t discard_length = 0U;
-    (void)camera_capture(&discard, &discard_length);
-    HAL_Delay(APP_CAMERA_WARMUP_INTERVAL_MS);
+    (void)snprintf(line, sizeof(line), "CAM warmup %u/%u\r\n",
+                   i + 1U, (unsigned)APP_CAMERA_WARMUP_COUNT);
+    write_log(log, line);
+    result = camera_capture_with_poll(&discard, &discard_length,
+                                      capture_poll, gnss);
+    if (result != 0) {
+      camera_power_off();
+      return result;
+    }
+    delay_with_poll(APP_CAMERA_WARMUP_INTERVAL_MS, poll_gnss, gnss);
   }
-  result = camera_capture(jpeg, length);
+  write_log(log, "CAM final capture\r\n");
+  result = camera_capture_with_poll(jpeg, length, capture_poll, gnss);
   camera_power_off();
   if (result != 0) return result;
   (void)snprintf(line, sizeof(line),
-                 "CAM %c JPEG bytes=%lu image=%u size=256x192\r\n",
+                 "CAM %c JPEG bytes=%lu image=%u size=%ux%u\r\n",
                  port == CAMERA_A ? 'A' : 'B', (unsigned long)*length,
-                 (unsigned)image_id);
+                 (unsigned)image_id, (unsigned)width, (unsigned)height);
   write_log(log, line);
   return 0;
 }
@@ -265,17 +293,24 @@ static int prepare_next_packet(void)
   }
 }
 
-int camera_ssdv_capture_start(AprsService *radio, GnssService *gnss,
-                              CameraPort port, uint8_t image_id,
-                              int8_t quality, CameraSsdvLogFn log)
+int camera_ssdv_capture_start_sequence(AprsService *radio, GnssService *gnss,
+                                       CameraPort port, uint32_t image_sequence,
+                                       int8_t quality, CameraSsdvLogFn log)
 {
   uint8_t *jpeg = NULL;
   uint32_t length = 0U;
+  uint8_t image_id = (uint8_t)image_sequence;
   int result;
 
   if (radio == NULL || gnss == NULL || ssdv_active != 0U) return -1;
-  result = capture_jpeg(port, image_id, &jpeg, &length, log);
+  result = capture_jpeg(port, 256U, 192U, gnss, image_id,
+                        &jpeg, &length, log);
   if (result != 0) return result;
+  if (image_storage != NULL &&
+      image_storage_store(image_storage, image_sequence, jpeg, length) != 0) {
+    write_log(log, "SSDV JPG storage failed\r\n");
+    return -3;
+  }
   result = ssdv_enc_init(&encoder, SSDV_TYPE_NORMAL, callsign, image_id,
                          quality, APP_SSDV_PACKET_SIZE);
   if (result != SSDV_OK || ssdv_enc_set_buffer(&encoder, packet) != SSDV_OK)
@@ -290,6 +325,14 @@ int camera_ssdv_capture_start(AprsService *radio, GnssService *gnss,
   ssdv_packets = 0U;
   write_log(log, "SSDV image ready; scheduled groups begin after 06 APRS\r\n");
   return 0;
+}
+
+int camera_ssdv_capture_start(AprsService *radio, GnssService *gnss,
+                              CameraPort port, uint8_t image_id,
+                              int8_t quality, CameraSsdvLogFn log)
+{
+  return camera_ssdv_capture_start_sequence(radio, gnss, port, image_id,
+                                             quality, log);
 }
 
 int camera_ssdv_send_next_group(AprsService *radio, GnssService *gnss,
@@ -351,8 +394,14 @@ static int capture_send_one(AprsService *radio, GnssService *gnss,
   uint8_t *jpeg = NULL;
   uint32_t length = 0U;
   char line[96];
-  int result = capture_jpeg(port, image_id, &jpeg, &length, log);
+  int result = capture_jpeg(port, 256U, 192U, gnss, image_id,
+                            &jpeg, &length, log);
   if (result != 0) return result;
+  if (image_storage != NULL &&
+      image_storage_store(image_storage, image_id, jpeg, length) != 0) {
+    write_log(log, "SSDV JPG storage failed\r\n");
+    return -7;
+  }
   result = send_image(radio, gnss, jpeg, length, image_id, quality, log);
   if (result >= 0) {
     (void)snprintf(line, sizeof(line), "SSDV image=%u complete packets=%d\r\n",
@@ -377,4 +426,90 @@ int camera_ssdv_run_sequence(AprsService *radio, GnssService *gnss,
   second_result = capture_send_one(radio, gnss, CAMERA_B, 1U, quality, log);
   if (second_result < 0) return second_result;
   return first_result < 0 ? first_result : 0;
+}
+
+static int run_high_speed_jpeg(GnssService *gnss, const uint8_t *jpeg,
+                               uint32_t length, uint32_t image_sequence,
+                               int8_t quality, CameraSsdvPacketFn send,
+                               void *context, CameraSsdvLogFn log)
+{
+  int status;
+  uint32_t offset = 0U;
+  uint8_t image_id = (uint8_t)image_sequence;
+  if (gnss == NULL || jpeg == NULL || send == NULL || length < 4U ||
+      length > APP_SSDV_MAX_JPEG_BYTES || jpeg[0] != 0xFFU ||
+      jpeg[1] != 0xD8U) return -1;
+  status = ssdv_enc_init(&encoder, SSDV_TYPE_NORMAL, callsign, image_id,
+                         quality, APP_SSDV_PACKET_SIZE);
+  if (status != SSDV_OK || ssdv_enc_set_buffer(&encoder, packet) != SSDV_OK)
+    return -2;
+  for (;;) {
+    status = ssdv_enc_get_packet(&encoder);
+    if (status == SSDV_FEED_ME) {
+      uint32_t chunk = length - offset;
+      if (chunk == 0U) return -3;
+      if (chunk > sizeof(feed)) chunk = sizeof(feed);
+      memcpy(feed, jpeg + offset, chunk);
+      offset += chunk;
+      if (ssdv_enc_feed(&encoder, feed, chunk) != SSDV_OK) return -4;
+      continue;
+    }
+    if (status == SSDV_EOI) break;
+    if (status != SSDV_OK) return -5;
+    if (send(packet, APP_SSDV_PACKET_SIZE, context) != 0) return -6;
+  }
+  if (log != NULL) {
+    char line[80];
+    (void)snprintf(line, sizeof(line), "HS SSDV image=%lu complete\r\n",
+                   (unsigned long)image_sequence);
+    write_log(log, line);
+  }
+  return 0;
+}
+
+int camera_ssdv_run_high_speed_capture(
+    GnssService *gnss, CameraPort port, uint32_t image_sequence,
+    uint16_t width, uint16_t height, int8_t quality,
+    CameraSsdvPacketFn send, void *context,
+    CameraSsdvLogFn log)
+{
+  uint8_t *jpeg = NULL;
+  uint32_t length = 0U;
+  int result;
+  result = capture_jpeg(port, width, height, gnss,
+                        (uint8_t)image_sequence, &jpeg, &length, log);
+  if (result != 0) return result;
+  board_set_stage(BOARD_STAGE_IMAGE_STORE);
+  if (image_storage != NULL &&
+      image_storage_store(image_storage, image_sequence, jpeg, length) != 0) {
+    write_log(log, "HS SSDV JPG storage failed\r\n");
+    board_set_stage(BOARD_STAGE_IDLE);
+    return -7;
+  }
+  board_set_stage(BOARD_STAGE_SSDV);
+  result = run_high_speed_jpeg(gnss, jpeg, length, image_sequence, quality,
+                              send, context, log);
+  board_set_stage(BOARD_STAGE_IDLE);
+  return result;
+}
+
+int camera_ssdv_run_high_speed_file(
+    GnssService *gnss, const ImageStorage *storage, uint32_t image_sequence,
+    int8_t quality, CameraSsdvPacketFn send, void *context,
+    CameraSsdvLogFn log)
+{
+  uint32_t length;
+  uint32_t offset;
+  if (gnss == NULL || storage == NULL || storage->initialized == 0U ||
+      image_storage_length(storage, image_sequence, &length) != 0 ||
+      length > sizeof(high_speed_jpeg)) return -1;
+  for (offset = 0U; offset < length;) {
+    uint32_t chunk = length - offset;
+    if (chunk > 4096U) chunk = 4096U;
+    if (image_storage_read(storage, image_sequence, offset,
+                           high_speed_jpeg + offset, chunk) != 0) return -2;
+    offset += chunk;
+  }
+  return run_high_speed_jpeg(gnss, high_speed_jpeg, length,
+                             image_sequence, quality, send, context, log);
 }

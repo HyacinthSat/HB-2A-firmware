@@ -99,6 +99,12 @@ class App:
         style.configure("TLabel", background="#f3f5f6", foreground="#263238")
         style.configure("Title.TLabel", font=("Microsoft YaHei UI", 21, "bold"))
         style.configure("TButton", padding=(10, 6))
+        style.configure("Command.TButton", padding=(7, 5))
+        style.configure("CommandSelected.TButton", padding=(7, 5),
+                        background="#15745b", foreground="white")
+        style.map("CommandSelected.TButton",
+                  background=[("active", "#12644e")],
+                  foreground=[("disabled", "#697574")])
         style.configure("Send.TButton", background="#15745b", foreground="white", padding=(20, 10))
         style.map("Send.TButton", background=[("disabled", "#dde3e2"), ("active", "#12644e")],
                   foreground=[("disabled", "#697574")])
@@ -134,18 +140,27 @@ class App:
         command.columnconfigure(1, weight=1)
         ttk.Label(command, text="指令").grid(row=0, column=0, sticky="w", pady=5, padx=(0, 16))
         self.kind = tk.StringVar(value="TRANPD")
-        self.command_select = ttk.Combobox(command, textvariable=self.kind, state="readonly",
-                                           values=("TRANPD", "EXPR", "CAPTR", "REQF", "HSPAR", "CHPRAM", "CFRM", "CANCEL"), width=15)
-        self.command_select.grid(row=0, column=1, sticky="w")
-        self.command_select.bind("<<ComboboxSelected>>", lambda _: self.change_command())
-        ttk.Label(command, text="功率 (dBm)").grid(row=0, column=2, padx=(16, 8))
+        self.command_names = ("TRANPD", "EXPR", "CAPTR", "REQF",
+                              "HSPAR", "CHPRAM", "CFRM", "CANCEL")
+        command_buttons = ttk.Frame(command)
+        command_buttons.grid(row=0, column=1, columnspan=3, sticky="ew")
+        self.command_buttons = {}
+        for column, name in enumerate(self.command_names):
+            command_buttons.columnconfigure(column, weight=1)
+            button = ttk.Button(command_buttons, text=name, style="Command.TButton",
+                                command=lambda selected=name: self.select_command(selected))
+            button.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 3, 0),
+                        pady=2)
+            self.command_buttons[name] = button
+        ttk.Label(command, text="功率 (dBm)").grid(row=1, column=0, sticky="w", pady=(6, 5))
         self.power = tk.StringVar(value="10")
-        ttk.Spinbox(command, from_=2, to=17, textvariable=self.power, width=5).grid(row=0, column=3)
+        ttk.Spinbox(command, from_=2, to=17, textvariable=self.power, width=5).grid(
+            row=1, column=1, sticky="w", pady=(6, 5))
         self.command_status = tk.StringVar()
         self.notice = ttk.Label(command, textvariable=self.command_status, foreground="#925619", wraplength=640)
-        self.notice.grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 10))
+        self.notice.grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 10))
         self.fields_frame = ttk.Frame(command)
-        self.fields_frame.grid(row=2, column=0, columnspan=4, sticky="ew")
+        self.fields_frame.grid(row=3, column=0, columnspan=4, sticky="ew")
         self.fields_frame.columnconfigure(1, weight=1)
         self.fields = []
         self.saved = {}
@@ -183,16 +198,25 @@ class App:
         self.log.see("end")
         self.log.configure(state="disabled")
 
+    def select_command(self, name):
+        if self.busy or name not in self.command_names:
+            return
+        self.kind.set(name)
+        self.change_command()
+
     def change_command(self):
         if self.current:
             self.saved[self.current] = [v.get() for v in self.fields]
         self.current = self.kind.get()
+        for name, button in self.command_buttons.items():
+            button.configure(style="CommandSelected.TButton" if name == self.current
+                             else "Command.TButton")
         for widget in self.fields_frame.winfo_children():
             widget.destroy()
         labels, defaults = {
-            "TRANPD": (["源呼号", "目的呼号", "转发路径", "消息 (≤7 ASCII)"], ["BG7ZDQ", "APZDQ7", "HB-2A", "HELLO"]),
+            "TRANPD": (["源呼号", "目的呼号", "转发路径", "消息 (≤7 ASCII)"], ["BG7ZDQ", "APZDQ7", "APZDQ7", "HELLO"]),
             "EXPR": ([], []),
-            "CAPTR": (["相机 (A/B)", "宽度", "高度", "质量 (0..7)"], ["A", "255", "250", "7"]),
+            "CAPTR": (["相机 (A/B)", "宽度", "高度", "质量 (0..7)"], ["A", "640", "480", "5"]),
             "REQF": (["文件索引"], ["0"]),
             "HSPAR": (["速率 ID", "编码 ID", "交织 ID"], ["0", "0", "1"]),
             "CHPRAM": (["速率 ID", "编码 ID", "交织 ID"], ["0", "0", "1"]),

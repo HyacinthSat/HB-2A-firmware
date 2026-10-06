@@ -26,18 +26,23 @@ int SX1278_APRS_SendWithContext(uint32_t frequency_hz, uint32_t budget_ms,
    Returns 0 only after the timer has emitted the complete packet and RF is off. */
 int SX1278_APRS_Send(uint32_t frequency_hz, uint32_t budget_ms, void (*service)(void));
 /* Prepare/send a raw MSB-first GMSK bitstream. The radio applies its
-   Gaussian BT=0.5 shaping; the caller supplies the already coded bits. */
+   Gaussian BT=0.5 shaping to FIFO bytes; no external DCLK is required.
+   The caller supplies all coded bits, preamble and sync. Up to seven zero
+   pad bits follow the coded tail to fill the final byte. No extra header,
+   CRC or whitening is added. Send returns -11 on FIFO underrun. The service
+   callback must return within 1 ms to sustain the 115200 bit/s profile. */
 int SX1278_APRS_PrepareGmsk(const uint8_t *bits, size_t bit_count,
                             uint32_t bitrate, uint32_t deviation_hz);
 int SX1278_APRS_SendGmsk(uint32_t frequency_hz, uint32_t budget_ms,
                          SX1278_APRS_ServiceFn service, void *context);
 uint8_t SX1278_APRS_Ready(void);
-/* Start/stop the 435.400 MHz continuous-FSK DIO receive path. Failed starts
+/* Start/stop 435.400 MHz RX (packet FIFO by default, optional DCLK path). Failed starts
    remain requested and RxPoll retries once per second; RxStop cancels this. */
 int SX1278_APRS_RxStart(void);
 void SX1278_APRS_RxStop(void);
 uint8_t SX1278_APRS_RxActive(void);
-/* Poll a frame completed by the DIO1 clock/DIO2 data receiver. */
+/* Drain RX and validate a complete command. Call frequently (normally <20 ms);
+   packet FIFO mode uses DIO1 notifications plus polling, without DCLK. */
 int SX1278_APRS_RxPoll(UplinkCommand *command);
 /* Foreground-only, rate-limited diagnostics; empty output when nothing is due.
    DCLK activity alone does not mean a packet was received. */

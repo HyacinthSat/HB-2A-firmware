@@ -146,7 +146,11 @@ int high_speed_service_start(HighSpeedService *service,
       return -2;
     }
     service->quality = (int8_t)value;
-    if (service->width == 0U || service->height == 0U) {
+    /* SSDV requires MCU-aligned dimensions.  Do not tie the command to the
+       current 256x192 test preset; the selected camera driver decides later
+       whether a particular aligned mode is available in hardware. */
+    if (service->width == 0U || service->height == 0U ||
+        (service->width & 15U) != 0U || (service->height & 15U) != 0U) {
       reject(service, "PARAM");
       return -2;
     }
@@ -197,7 +201,8 @@ int high_speed_service_command(HighSpeedService *service,
     return 0;
   }
   if (service->state == HS_STATE_WAIT_CONFIRM &&
-      is_command(command, "CHPRAM", 4U)) {
+      (is_command(command, "CHPRAM", 4U) ||
+       is_command(command, "HSPAR", 4U))) {
     if (parse_parameters(command, &parameters) != 0) {
       reject(service, "PARAM");
       return -3;

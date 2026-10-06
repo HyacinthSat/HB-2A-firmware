@@ -81,7 +81,7 @@ int main(void)
   char report[240];
   UplinkRadio_TxReport(report,sizeof(report));
   assert(strstr(report,"TXMS=77 EXPECT=77 SNAP=1 MODE=0B"));
-  n=uplink_frame_encode((const uint8_t *)"TRANPD BG7ZDQ APZDQ7 HB-2A  HELLO  ",35,frame,sizeof(frame));
+  n=uplink_frame_encode((const uint8_t *)"TRANPD BG7ZDQ APZDQ7 APZDQ7 HELLO  ",35,frame,sizeof(frame));
   for (unsigned repeat=0; repeat<10; ++repeat) {
     assert(UplinkRadio_Send(frame,n,17)==0);
     UplinkRadio_TxReport(report,sizeof(report));
@@ -98,7 +98,7 @@ int main(void)
         uplink_decoder_push_bit(&decoder,(byte>>(7-bit))&1);
     }
     assert(uplink_decoder_take(&decoder,&command)==1);
-    assert(memcmp(command.data,"TRANPD BG7ZDQ APZDQ7 HB-2A  HELLO  ",35)==0);
+    assert(memcmp(command.data,"TRANPD BG7ZDQ APZDQ7 APZDQ7 HELLO  ",35)==0);
   }
   early_done=1;
   assert(UplinkRadio_Send(frame,n,17)==-7 && !UplinkRadio_Ready());
