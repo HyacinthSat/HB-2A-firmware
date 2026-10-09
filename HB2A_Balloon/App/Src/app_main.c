@@ -363,8 +363,11 @@ static int selftest_sx1278(void *context, uint8_t attempt,
       return -1;
     }
   }
-  app_debug("SELFTEST SX1278 carrier start freq=144640000 power=20dBm duration=1000ms\r\n");
-  result = SX1278_APRS_SetPowerDbm(20U);
+  (void)snprintf(g_radio_diagnostic, sizeof(g_radio_diagnostic),
+                 "SELFTEST SX1278 carrier start freq=144640000 power=%udBm duration=1000ms\r\n",
+                 (unsigned)APP_SX1278_SELFTEST_POWER_DBM);
+  app_debug(g_radio_diagnostic);
+  result = SX1278_APRS_SetPowerDbm(APP_SX1278_SELFTEST_POWER_DBM);
   if (result == 0) result = SX1278_APRS_CarrierTest(144640000UL, 1000U, NULL);
   (void)snprintf(g_radio_diagnostic, sizeof(g_radio_diagnostic),
                  "SELFTEST SX1278 carrier result rc=%d attempt=%u\r\n",

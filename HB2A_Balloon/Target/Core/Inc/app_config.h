@@ -8,6 +8,12 @@
 #define APP_SX1278_NSS_TEST_ON_FAILURE 1U
 /* Temporary RF diagnosis: one bounded carrier before startup APRS, indoor only. */
 #define APP_SX1278_CARRIER_TEST_MS     0U
+/* Startup SX1278 self-test: 1 s carrier on 144.640 MHz at the operating power.
+   Values above 17 dBm would need the PA_DAC high-power path and are rejected. */
+#define APP_SX1278_SELFTEST_POWER_DBM  10U
+#if APP_SX1278_SELFTEST_POWER_DBM < 2U || APP_SX1278_SELFTEST_POWER_DBM > 17U
+#error "Normal PA_BOOST supports 2..17 dBm"
+#endif
 /* Images are captured from the 06-minute APRS boundary onward. */
 #define APP_STARTUP_SSDV_TEST           0U
 

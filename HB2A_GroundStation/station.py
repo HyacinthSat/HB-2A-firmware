@@ -18,7 +18,7 @@ from radio import Rig, Transmitter
 from recording import Recorder
 from wire import RATES, Wire, ssdv_packet
 from audio_devices import output_devices, resolve_output
-from hardware_radio import HardwareTransmitter
+from hardware_radio import HardwareTransmitter, choose_hardware_port
 
 try:
     from serial.tools import list_ports
@@ -308,12 +308,12 @@ class App:
         if list_ports is None:
             return
         ports = list(list_ports.comports())
+        previous = self.hardware_ports.get(self.hardware_port.get(), self.hardware_port.get())
         self.hardware_ports = {"%s: %s" % (p.device, p.description): p.device for p in ports}
         self.hardware_combo.configure(values=list(self.hardware_ports))
-        if self.hardware_port.get() not in self.hardware_ports:
-            selected = next((key for key in self.hardware_ports if "HB2A" in key.upper() or "STM" in key.upper()),
-                            next(iter(self.hardware_ports), ""))
-            self.hardware_port.set(selected)
+        selected = choose_hardware_port(ports, previous)
+        self.hardware_port.set(next((key for key, device in self.hardware_ports.items()
+                                     if device == selected), ""))
 
     def selected_hardware_port(self):
         if self.hardware_port.get() in self.hardware_ports:

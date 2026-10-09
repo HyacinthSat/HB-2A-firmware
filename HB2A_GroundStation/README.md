@@ -27,6 +27,10 @@ python station.py
 
 发射后端有两个选项：`IC-9700 USB audio` 使用 CAT + USB 声卡；`Hardware transceiver` 使用仓库 `HB2A_Uplink/Host/protocol.py` 的现有 USB CDC 协议，通过 COM 口以 115200 baud 发送 `STATUS` 和 `SEND <power> <hex>`，由 HB2A 上行硬件板完成 GMSK/RF 发射。界面会枚举 COM 口，功率限制为 2--17 dBm；硬件回报 `OK SENT` 后才记录发送完成，串口中断不会自动重发。该后端直接复用上行主机协议，不重复实现 BCH/NRZI/CRC。
 
+硬件 COM 默认只在唯一候选设备时自动选择，候选依据 HB2A/USTC 名称或本板 USB VID:PID `0483:5740`；不再退回列表第一个 CH340/调试串口。USB 标识只用于推荐，实际连接仍必须收到 `OK HB2A-UPLINK/1 RADIO=READY` 才允许发送。已明确选择的串口会保留；多个候选或没有匹配时需手动选择。
+
+握手会等待清行命令完成，并忽略空行、`^X` / CAN 清行回显及原命令回显。其他协议回复会明确报错，超时标出 COM 口和最后收到的内容；连接尝试和失败也记录端口。`Hardware transceiver is not ready` 属于电脑与上行板的 USB 握手失败，不是气球无线链路未响应；`^X` 本身也不是 RADIO 错误码。只有 STATUS 确认 READY 后才发送一次 SEND，不因握手失败或发送结果不明而重发该 RF 命令。
+
 1. 安装 Icom USB 驱动，以 USB 线连接电脑和电台。
 2. 电台 `Connectors > DATA MOD` 选择 `USB`，调整 `USB MOD Level`；在系统音频设置中禁用增强、空间音效和自动音量，使用 48 kHz。
 3. 地面站 `USB audio output` 下拉框选择电台的 `USB Audio CODEC` 播放设备，插拔后点击 `Refresh`。Windows 下直接枚举 GNU Radio 使用的 waveOut 设备，编号区分同名声卡；只有唯一匹配时才自动选中 USB Audio CODEC。每次发射前核对设备，丢失时停止发送，不主动回退到默认扬声器。
