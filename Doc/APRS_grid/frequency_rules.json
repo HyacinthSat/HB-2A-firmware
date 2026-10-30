@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "reviewed_date": "2026-10-09",
+  "mode": "terrestrial AX.25 1200 bps AFSK",
+  "frequencies_hz": [144390000,144800000,144640000,144660000,145175000,144575000,145570000,144930000],
+  "groups": [
+    {"countries":["USA","CAN","MEX"],"frequencies_hz":[144390000],"evidence":"regional convention","sources":["https://www.aprs.org/"]},
+    {"countries":["MYS","THA","SGP","IDN"],"frequencies_hz":[144390000],"evidence":"IARU operating-frequency note August 2018; Thailand old 145.525 superseded","sources":["https://www.iaru.org/wp-content/uploads/2020/01/R3-004-IARU-Region-3-Bandplan-rev.2.pdf","https://www.hs9dmc.com/web/APRS_Tracker/index.htm","https://www.sarts.org.sg/2023/05/"]},
+    {"countries":["CHN","TWN","HKG"],"frequencies_hz":[144640000],"evidence":"IARU operating-frequency note August 2018","sources":["https://www.iaru.org/wp-content/uploads/2020/01/R3-004-IARU-Region-3-Bandplan-rev.2.pdf"]},
+    {"countries":["JPN"],"frequencies_hz":[144660000],"evidence":"Japanese operator: 1200 bps; 144.640 is 9600 bps","sources":["https://gist.github.com/jj1bdx/8ba7dbfaea4c2dea1866f5cd5a7ec75e"]},
+    {"countries":["AUS"],"frequencies_hz":[145175000],"evidence":"national band plan 2026","sources":["https://www.wia.org.au/members/tac/consultation/documents/WIA%20Australian%20Band%20Plan%202026.pdf"]},
+    {"countries":["NZL"],"frequencies_hz":[144575000],"evidence":"national society station directory 2024","sources":["https://nzart.org.nz/wp-content/uploads/2024/11/Call-Book-2024.pdf"]},
+    {"countries":["BRA"],"frequencies_hz":[145570000],"evidence":"Brazilian APRS network and station beacon","sources":["https://www.aprsbrasil.com/aprs_equipamentos.html","https://de.aprs.fi/info/PR2KW-1"]},
+    {"countries":["URY"],"frequencies_hz":[144930000],"evidence":"CX1AA-1 station listing; regional candidate, not uniform coverage","sources":["https://www.cx1aa.org/boletines/Boletin%20CX%20819.pdf"]},
+    {"countries":["PAN"],"frequencies_hz":[144930000],"evidence":"observed Red APRS Panama II network; candidate, not nationwide uniformity","sources":["https://sv.aprs.fi/info/HP2DFA-6","https://aprs.fi/info/?call=HP2DFA%2A"]},
+    {"countries":["ARG"],"frequencies_hz":[144390000,144930000],"evidence":"multiple networks / source dates; retain candidates, not both confirmed at every point","sources":["https://aprs.ar/","https://aprs.fi/info/LU7%2A","https://mail.amsat.org.ar/lu4aao/experimento_globo_mayo_2012.htm"]},
+    {"countries":["CHL","COL"],"frequencies_hz":[144390000],"evidence":"ARES Colombia operational reference","sources":["https://ares-colombia.org/pdf/JOTA-JOTI_2022_Ham_Radio_Handbook_ES.pdf"]},
+    {"countries":["ZAF"],"frequencies_hz":[144800000],"evidence":"local club directory and national-frequency statement","sources":["https://marc.org.za/marc_legacy/pages/freq.htm","https://marc.org.za/marc_legacy/downloads/newsletter/HHN%201004.pdf"]},
+    {"countries":["ISR"],"frequencies_hz":[144800000],"evidence":"national society bulletin 2024","sources":["https://www.iarc.org/wp-content/uploads/2024/10/4XBulletin-10-2024-B.pdf"]},
+    {"countries":["TUR"],"frequencies_hz":[144800000],"evidence":"TRAC Denizli YM4DNZ and ANTRAK YM2KA network operators","sources":["https://tracdenizli.org.tr/","https://antrak.org.tr/haberler/antrak-aprs-sisteminin-yeniden-devreye-al%C4%B1nmas%C4%B1/"]}
+  ],
+  "europe":{"frequency_hz":144800000,"evidence":"regional convention; not per-country verification","sources":["https://www.iaru-r1.org/wp-content/uploads/2024/11/VHF_Handbook_V10_02.pdf","https://www.aprs.org/"],"component_bounds":[-32,27,45,85],"whole_country_exceptions":["RUS"]}
+}

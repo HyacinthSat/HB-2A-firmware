@@ -1,0 +1,1357 @@
+{
+  "format_version": 2,
+  "resolution_degrees": 1,
+  "rows": 180,
+  "columns": 360,
+  "order": "south-to-north, west-to-east, row-major",
+  "frequency_bits_hz": {
+    "0": 144390000,
+    "1": 144800000,
+    "2": 144640000,
+    "3": 144660000,
+    "4": 145175000,
+    "5": 144575000,
+    "6": 145570000,
+    "7": 144930000
+  },
+  "special_masks": {
+    "0": "no mapped candidate, NOT no receivers",
+    "32768": "frequency unconfirmed, NOT no receivers",
+    "16384": "invalid position (lookup only)"
+  },
+  "palette_masks": [
+    0,
+    1,
+    2,
+    4,
+    6,
+    8,
+    10,
+    16,
+    32,
+    64,
+    65,
+    128,
+    129,
+    192,
+    193,
+    32768
+  ],
+  "country_assignments": {
+    "ZWE": {
+      "name": "Zimbabwe",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ZMB": {
+      "name": "Zambia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "YEM": {
+      "name": "Yemen",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VNM": {
+      "name": "Vietnam",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VEN": {
+      "name": "Venezuela",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VAT": {
+      "name": "Vatican",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "VUT": {
+      "name": "Vanuatu",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "UZB": {
+      "name": "Uzbekistan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "URY": {
+      "name": "Uruguay",
+      "mask": 128,
+      "basis": "explicit"
+    },
+    "FSM": {
+      "name": "Federated States of Micronesia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MHL": {
+      "name": "Marshall Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MNP": {
+      "name": "Northern Mariana Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VIR": {
+      "name": "United States Virgin Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GUM": {
+      "name": "Guam",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ASM": {
+      "name": "American Samoa",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PRI": {
+      "name": "Puerto Rico",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "USA": {
+      "name": "United States of America",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "SGS": {
+      "name": "South Georgia and the Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "IOT": {
+      "name": "British Indian Ocean Territory",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SHN": {
+      "name": "Saint Helena",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PCN": {
+      "name": "Pitcairn Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "AIA": {
+      "name": "Anguilla",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "FLK": {
+      "name": "Falkland Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CYM": {
+      "name": "Cayman Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BMU": {
+      "name": "Bermuda",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VGB": {
+      "name": "British Virgin Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TCA": {
+      "name": "Turks and Caicos Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MSR": {
+      "name": "Montserrat",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "JEY": {
+      "name": "Jersey",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "GGY": {
+      "name": "Guernsey",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "IMN": {
+      "name": "Isle of Man",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "GBR": {
+      "name": "United Kingdom",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "ARE": {
+      "name": "United Arab Emirates",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "UKR": {
+      "name": "Ukraine",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "UGA": {
+      "name": "Uganda",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TKM": {
+      "name": "Turkmenistan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TUR": {
+      "name": "Turkey",
+      "mask": 2,
+      "basis": "explicit"
+    },
+    "TUN": {
+      "name": "Tunisia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TTO": {
+      "name": "Trinidad and Tobago",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TON": {
+      "name": "Tonga",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TGO": {
+      "name": "Togo",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TLS": {
+      "name": "East Timor",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "THA": {
+      "name": "Thailand",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "TZA": {
+      "name": "United Republic of Tanzania",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TJK": {
+      "name": "Tajikistan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TWN": {
+      "name": "Taiwan",
+      "mask": 4,
+      "basis": "explicit"
+    },
+    "SYR": {
+      "name": "Syria",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CHE": {
+      "name": "Switzerland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SWE": {
+      "name": "Sweden",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SWZ": {
+      "name": "eSwatini",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SUR": {
+      "name": "Suriname",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SDS": {
+      "name": "South Sudan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SDN": {
+      "name": "Sudan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LKA": {
+      "name": "Sri Lanka",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ESP": {
+      "name": "Spain",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "KOR": {
+      "name": "South Korea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ZAF": {
+      "name": "South Africa",
+      "mask": 2,
+      "basis": "explicit"
+    },
+    "SOM": {
+      "name": "Somalia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SOL": {
+      "name": "Somaliland",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SLB": {
+      "name": "Solomon Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SVK": {
+      "name": "Slovakia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SVN": {
+      "name": "Slovenia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SGP": {
+      "name": "Singapore",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "SLE": {
+      "name": "Sierra Leone",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SYC": {
+      "name": "Seychelles",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SRB": {
+      "name": "Republic of Serbia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SEN": {
+      "name": "Senegal",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SAU": {
+      "name": "Saudi Arabia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "STP": {
+      "name": "São Tomé and Principe",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SMR": {
+      "name": "San Marino",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "WSM": {
+      "name": "Samoa",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "VCT": {
+      "name": "Saint Vincent and the Grenadines",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LCA": {
+      "name": "Saint Lucia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KNA": {
+      "name": "Saint Kitts and Nevis",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "RWA": {
+      "name": "Rwanda",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "RUS": {
+      "name": "Russia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "ROU": {
+      "name": "Romania",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "QAT": {
+      "name": "Qatar",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PRT": {
+      "name": "Portugal",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "POL": {
+      "name": "Poland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "PHL": {
+      "name": "Philippines",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PER": {
+      "name": "Peru",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PRY": {
+      "name": "Paraguay",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PNG": {
+      "name": "Papua New Guinea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PAN": {
+      "name": "Panama",
+      "mask": 128,
+      "basis": "explicit"
+    },
+    "PLW": {
+      "name": "Palau",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PAK": {
+      "name": "Pakistan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "OMN": {
+      "name": "Oman",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NOR": {
+      "name": "Norway",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "PRK": {
+      "name": "North Korea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NGA": {
+      "name": "Nigeria",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NER": {
+      "name": "Niger",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NIC": {
+      "name": "Nicaragua",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NZL": {
+      "name": "New Zealand",
+      "mask": 32,
+      "basis": "explicit"
+    },
+    "NIU": {
+      "name": "Niue",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "COK": {
+      "name": "Cook Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NLD": {
+      "name": "Netherlands",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "ABW": {
+      "name": "Aruba",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CUW": {
+      "name": "Curaçao",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NPL": {
+      "name": "Nepal",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NRU": {
+      "name": "Nauru",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NAM": {
+      "name": "Namibia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MOZ": {
+      "name": "Mozambique",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MAR": {
+      "name": "Morocco",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SAH": {
+      "name": "Western Sahara",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MNE": {
+      "name": "Montenegro",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "MNG": {
+      "name": "Mongolia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MDA": {
+      "name": "Moldova",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "MCO": {
+      "name": "Monaco",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "MEX": {
+      "name": "Mexico",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "MUS": {
+      "name": "Mauritius",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MRT": {
+      "name": "Mauritania",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MLT": {
+      "name": "Malta",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "MLI": {
+      "name": "Mali",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MDV": {
+      "name": "Maldives",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MYS": {
+      "name": "Malaysia",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "MWI": {
+      "name": "Malawi",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MDG": {
+      "name": "Madagascar",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MKD": {
+      "name": "North Macedonia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "LUX": {
+      "name": "Luxembourg",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "LTU": {
+      "name": "Lithuania",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "LIE": {
+      "name": "Liechtenstein",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "LBY": {
+      "name": "Libya",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LBR": {
+      "name": "Liberia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LSO": {
+      "name": "Lesotho",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LBN": {
+      "name": "Lebanon",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "LVA": {
+      "name": "Latvia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "LAO": {
+      "name": "Laos",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KGZ": {
+      "name": "Kyrgyzstan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KWT": {
+      "name": "Kuwait",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KOS": {
+      "name": "Kosovo",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "KIR": {
+      "name": "Kiribati",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KEN": {
+      "name": "Kenya",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KAZ": {
+      "name": "Kazakhstan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "JOR": {
+      "name": "Jordan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "JPN": {
+      "name": "Japan",
+      "mask": 8,
+      "basis": "explicit"
+    },
+    "JAM": {
+      "name": "Jamaica",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ITA": {
+      "name": "Italy",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "ISR": {
+      "name": "Israel",
+      "mask": 2,
+      "basis": "explicit"
+    },
+    "PSX": {
+      "name": "Palestine",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "IRL": {
+      "name": "Ireland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "IRQ": {
+      "name": "Iraq",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "IRN": {
+      "name": "Iran",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "IDN": {
+      "name": "Indonesia",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "IND": {
+      "name": "India",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ISL": {
+      "name": "Iceland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "HUN": {
+      "name": "Hungary",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "HND": {
+      "name": "Honduras",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "HTI": {
+      "name": "Haiti",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GUY": {
+      "name": "Guyana",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GNB": {
+      "name": "Guinea-Bissau",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GIN": {
+      "name": "Guinea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GTM": {
+      "name": "Guatemala",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GRD": {
+      "name": "Grenada",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GRC": {
+      "name": "Greece",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "GHA": {
+      "name": "Ghana",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "DEU": {
+      "name": "Germany",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "GEO": {
+      "name": "Georgia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GMB": {
+      "name": "Gambia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GAB": {
+      "name": "Gabon",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "FRA": {
+      "name": "France",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "SPM": {
+      "name": "Saint Pierre and Miquelon",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "WLF": {
+      "name": "Wallis and Futuna",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MAF": {
+      "name": "Saint Martin",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BLM": {
+      "name": "Saint Barthelemy",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "PYF": {
+      "name": "French Polynesia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NCL": {
+      "name": "New Caledonia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ATF": {
+      "name": "French Southern and Antarctic Lands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ALD": {
+      "name": "Aland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "FIN": {
+      "name": "Finland",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "FJI": {
+      "name": "Fiji",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ETH": {
+      "name": "Ethiopia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "EST": {
+      "name": "Estonia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "ERI": {
+      "name": "Eritrea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GNQ": {
+      "name": "Equatorial Guinea",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SLV": {
+      "name": "El Salvador",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "EGY": {
+      "name": "Egypt",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ECU": {
+      "name": "Ecuador",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "DOM": {
+      "name": "Dominican Republic",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "DMA": {
+      "name": "Dominica",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "DJI": {
+      "name": "Djibouti",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "GRL": {
+      "name": "Greenland",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "FRO": {
+      "name": "Faroe Islands",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "DNK": {
+      "name": "Denmark",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "CZE": {
+      "name": "Czechia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "CYN": {
+      "name": "Northern Cyprus",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CYP": {
+      "name": "Cyprus",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CUB": {
+      "name": "Cuba",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "HRV": {
+      "name": "Croatia",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "CIV": {
+      "name": "Ivory Coast",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CRI": {
+      "name": "Costa Rica",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "COD": {
+      "name": "Democratic Republic of the Congo",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "COG": {
+      "name": "Republic of the Congo",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "COM": {
+      "name": "Comoros",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "COL": {
+      "name": "Colombia",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "CHN": {
+      "name": "China",
+      "mask": 4,
+      "basis": "explicit"
+    },
+    "MAC": {
+      "name": "Macao S.A.R",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "HKG": {
+      "name": "Hong Kong S.A.R.",
+      "mask": 4,
+      "basis": "explicit"
+    },
+    "CHL": {
+      "name": "Chile",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "TCD": {
+      "name": "Chad",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CAF": {
+      "name": "Central African Republic",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CPV": {
+      "name": "Cabo Verde",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "CAN": {
+      "name": "Canada",
+      "mask": 1,
+      "basis": "explicit"
+    },
+    "CMR": {
+      "name": "Cameroon",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KHM": {
+      "name": "Cambodia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "MMR": {
+      "name": "Myanmar",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BDI": {
+      "name": "Burundi",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BFA": {
+      "name": "Burkina Faso",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BGR": {
+      "name": "Bulgaria",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "BRN": {
+      "name": "Brunei",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BRA": {
+      "name": "Brazil",
+      "mask": 64,
+      "basis": "explicit"
+    },
+    "BWA": {
+      "name": "Botswana",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BIH": {
+      "name": "Bosnia and Herzegovina",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "BOL": {
+      "name": "Bolivia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BTN": {
+      "name": "Bhutan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BEN": {
+      "name": "Benin",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BLZ": {
+      "name": "Belize",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BEL": {
+      "name": "Belgium",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "BLR": {
+      "name": "Belarus",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "BRB": {
+      "name": "Barbados",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BGD": {
+      "name": "Bangladesh",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BHR": {
+      "name": "Bahrain",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "BHS": {
+      "name": "The Bahamas",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "AZE": {
+      "name": "Azerbaijan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "AUT": {
+      "name": "Austria",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "AUS": {
+      "name": "Australia",
+      "mask": 16,
+      "basis": "explicit"
+    },
+    "IOA": {
+      "name": "Indian Ocean Territories",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "HMD": {
+      "name": "Heard Island and McDonald Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "NFK": {
+      "name": "Norfolk Island",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ATC": {
+      "name": "Ashmore and Cartier Islands",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ARM": {
+      "name": "Armenia",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ARG": {
+      "name": "Argentina",
+      "mask": 129,
+      "basis": "explicit"
+    },
+    "ATG": {
+      "name": "Antigua and Barbuda",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "AGO": {
+      "name": "Angola",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "AND": {
+      "name": "Andorra",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "DZA": {
+      "name": "Algeria",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ALB": {
+      "name": "Albania",
+      "mask": 2,
+      "basis": "regional"
+    },
+    "AFG": {
+      "name": "Afghanistan",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "KAS": {
+      "name": "Siachen Glacier",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "ATA": {
+      "name": "Antarctica",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "SXM": {
+      "name": "Sint Maarten",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    },
+    "TUV": {
+      "name": "Tuvalu",
+      "mask": 32768,
+      "basis": "unconfirmed"
+    }
+  },
+  "overseas_components_not_inherited": [
+    {
+      "country": "NLD",
+      "representative_point": [
+        -68.24722252398794,
+        12.158154499999998
+      ]
+    },
+    {
+      "country": "NLD",
+      "representative_point": [
+        -62.97514371965151,
+        17.503051499999998
+      ]
+    },
+    {
+      "country": "NLD",
+      "representative_point": [
+        -63.24132100773609,
+        17.6396975
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        45.15039005972955,
+        -12.8052245
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        55.52861186191731,
+        -21.098486
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        -61.014915117387545,
+        14.648462
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        -61.42704230926217,
+        16.3616945
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        -61.67065269973479,
+        16.1446045
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        -61.26178553086318,
+        15.9380615
+      ]
+    },
+    {
+      "country": "FRA",
+      "representative_point": [
+        -53.03958729874925,
+        3.961304
+      ]
+    }
+  ],
+  "compression": {
+    "original_uint8_bytes": 64800,
+    "reference_mask_bytes": 129600,
+    "palette_uint8_bytes": 64800,
+    "bitpacked_palette_bytes": 32432,
+    "zlib_palette_bytes_without_decoder": 2829,
+    "row_rle_words": 2677,
+    "max_runs_per_row": 30,
+    "row_rle_bytes": 5748,
+    "total_c_table_bytes_including_frequencies": 5780,
+    "reduction_vs_original_percent": 91.08
+  },
+  "geometry_source": "https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_50m_admin_0_countries.geojson",
+  "geometry_sha256": "3e458fc036ad0a66411f2c1e6cac49c5d7bfb81cb1123bc513b22511a2b7fdeb",
+  "rules_sha256": "fe59424b288b2f5e6ca42a4a951e87ad0bc20b63ab56cb9215f5c37b4cbed20d",
+  "mask_cell_counts": {
+    "0": 39823,
+    "1": 4412,
+    "2": 4806,
+    "4": 1061,
+    "6": 43,
+    "8": 91,
+    "10": 4,
+    "16": 811,
+    "32": 69,
+    "64": 779,
+    "65": 14,
+    "128": 27,
+    "129": 345,
+    "192": 8,
+    "193": 11,
+    "32768": 12496
+  }
+}
